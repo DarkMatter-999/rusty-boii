@@ -1,58 +1,78 @@
-struct FlagsReg {
-    zero: bool,
-    sub: bool,
-    half_carry: bool,
-    carry: bool,
+use crate::{
+    instructions::{self, Arithmetic, Instruction},
+    memory::Memory,
+    registers::{Registers, CARRY_POS},
+};
+
+struct CPU {
+    reg: Registers,
+    pc: u16,
+    mem: Memory,
 }
 
-const ZERO_POS: u8 = 7;
-const SUB_POS: u8 = 6;
-const HCARRY_POS: u8 = 5;
-const CARRY_POS: u8 = 4;
+impl CPU {
+    fn run(&mut self) {
+        let ins = self.fetch();
 
-impl std::convert::From<FlagsReg> for u8 {
-    fn from(flag: FlagsReg) -> Self {
-        (if flag.carry { 1 } else { 0 }) << CARRY_POS
-            | (if flag.half_carry { 1 } else { 0 }) << HCARRY_POS
-            | (if flag.sub { 1 } else { 0 }) << SUB_POS
-            | (if flag.zero { 1 } else { 0 }) << ZERO_POS
+        self.execute(ins);
     }
-}
 
-impl std::convert::From<u8> for FlagsReg {
-    fn from(value: u8) -> Self {
-        let zero = (value >> ZERO_POS) & 0b1 != 0;
-        let sub = (value >> SUB_POS) & 0b1 != 0;
-        let half_carry = (value >> HCARRY_POS) & 0b1 != 0;
-        let carry = (value >> CARRY_POS) & 0b1 != 0;
-
-        FlagsReg {
-            zero,
-            sub,
-            half_carry,
-            carry,
+    fn decode(&self, ins: u8) -> Instruction {
+        match ins {
+            _ => return Instruction::NOP,
         }
     }
-}
 
-struct Registers {
-    a: u8,
-    b: u8,
-    c: u8,
-    d: u8,
-    e: u8,
-    f: u8,
-    h: u8,
-    l: u8,
-}
+    fn fetch(&self) -> Instruction {
+        let ins = self.mem.readByte(self.pc);
 
-impl Registers {
-    fn get_bc(&self) -> u16 {
-        (self.b as u16) << 8 | self.c as u16
+        self.decode(ins)
     }
 
-    fn set_bc(&mut self, val: u16) {
-        self.b = (val & 0xFF00 >> 8) as u8;
-        self.c = (val & 0xFF) as u8;
+    fn execute(&mut self, ins: Instruction) {
+        match ins {
+            Instruction::ADD(target) => match target {
+                Arithmetic::A => {
+                    let lhs = self.reg.a;
+                    self.reg.a = self.add_without_carry(lhs);
+                }
+                Arithmetic::B => {
+                    let lhs = self.reg.b;
+                    self.reg.a = self.add_without_carry(lhs);
+                }
+                Arithmetic::C => {
+                    let lhs = self.reg.c;
+                    self.reg.a = self.add_without_carry(lhs);
+                }
+                Arithmetic::D => {
+                    let lhs = self.reg.d;
+                    self.reg.a = self.add_without_carry(lhs);
+                }
+                Arithmetic::E => {
+                    let lhs = self.reg.e;
+                    self.reg.a = self.add_without_carry(lhs);
+                }
+                Arithmetic::H => {
+                    let lhs = self.reg.h;
+                    self.reg.a = self.add_without_carry(lhs);
+                }
+                Arithmetic::L => {
+                    let lhs = self.reg.l;
+                    self.reg.a = self.add_without_carry(lhs);
+                }
+            },
+            Instruction::NOP => {}
+        }
+    }
+
+    fn add_without_carry(&mut self, lhs: u8) -> u8 {
+        let (sum, overflow) = self.reg.a.overflowing_add(lhs);
+
+        self.reg.f.zero = sum == 0;
+        self.reg.f.sub = false;
+        self.reg.f.carry = overflow;
+        self.reg.f.half_carry = (self.reg.a & 0xF) + (lhs & 0xF) > 0xF;
+
+        sum
     }
 }
