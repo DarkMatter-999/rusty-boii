@@ -1,0 +1,5 @@
+https://project-awesome.org/gbdev/awesome-gbdev
+
+https://gbdev.io/pandocs/
+
+http://imrannazar.com/GameBoy-Emulation-in-JavaScript:-The-CPU
