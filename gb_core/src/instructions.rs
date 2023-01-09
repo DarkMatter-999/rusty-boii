@@ -9,6 +9,57 @@ pub enum Arithmetic {
 }
 
 pub enum Instruction {
-    ADD(Arithmetic),
     NOP,
+    LD(LoadType),
+
+    ADD(Arithmetic),
+}
+
+pub enum LoadByteTarget {
+    A,
+    B,
+    C,
+    D,
+    E,
+    H,
+    L,
+    HLI,
+}
+
+pub enum LoadByteSource {
+    A,
+    B,
+    C,
+    D,
+    E,
+    H,
+    L,
+    HLI,
+    D8,
+}
+pub enum LoadWordTarget {
+    BC,
+    DE,
+    HL,
+    SP,
+}
+pub enum Indirect {
+    BCIndirect,
+    DEIndirect,
+    HLIndirectMinus,
+    HLIndirectPlus,
+    WordIndirect,
+    LastByteIndirect,
+}
+
+pub enum LoadType {
+    Byte(LoadByteTarget, LoadByteSource),
+    Word(LoadWordTarget),
+    AFromIndirect(Indirect),
+    IndirectFromA(Indirect),
+    AFromByteAddress,
+    ByteAddressFromA,
+    SPFromHL,
+    HLFromSPN,
+    IndirectFromSP,
 }
