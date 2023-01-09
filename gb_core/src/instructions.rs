@@ -6,6 +6,12 @@ pub enum Instruction {
     DEC(IncDecTarget),
 
     ADD(Arithmetic),
+    ADC(Arithmetic),
+    ADDHL(ADDHLTarget),
+    ADDSP,
+
+    SUB(Arithmetic),
+    SBC(Arithmetic),
 }
 
 pub enum LoadByteTarget {
@@ -84,4 +90,11 @@ pub enum Arithmetic {
     L,
     D8,
     HLI,
+}
+
+pub enum ADDHLTarget {
+    BC,
+    DE,
+    HL,
+    SP,
 }

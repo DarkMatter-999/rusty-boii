@@ -1,7 +1,7 @@
 use crate::{
     instructions::{
-        Arithmetic, IncDecTarget, Indirect, Instruction, LoadByteSource, LoadByteTarget, LoadType,
-        LoadWordTarget,
+        ADDHLTarget, Arithmetic, IncDecTarget, Indirect, Instruction, LoadByteSource,
+        LoadByteTarget, LoadType, LoadWordTarget,
     },
     memory::Memory,
     registers::{self, FlagsReg, Registers},
@@ -324,6 +324,164 @@ impl CPU {
                     (self.pc.wrapping_add(1), 8)
                 }
             },
+            Instruction::ADDHL(target) => {
+                let value = match target {
+                    ADDHLTarget::BC => self.reg.get_bc(),
+                    ADDHLTarget::DE => self.reg.get_de(),
+                    ADDHLTarget::HL => self.reg.get_hl(),
+                    ADDHLTarget::SP => self.sp,
+                };
+                let hl = self.reg.get_hl();
+                let (result, carry) = hl.overflowing_add(value);
+
+                self.reg.f.carry = carry;
+                self.reg.f.sub = false;
+                let mask = 0b111_1111_1111;
+                self.reg.f.half_carry = (value & mask) + (hl & mask) > mask;
+
+                self.reg.set_hl(result);
+                (self.pc.wrapping_add(1), 8)
+            }
+            Instruction::ADDSP => {
+                let value = self.read_next_byte() as i8 as i16 as u16;
+                let res = self.sp.wrapping_add(value);
+
+                self.reg.f.half_carry = (self.sp & 0xf) + (value & 0xf) > 0xf;
+
+                self.reg.f.carry = (self.sp & 0xff) + (value & 0xff) > 0xff;
+                self.reg.f.zero = false;
+                self.reg.f.sub = false;
+
+                self.sp = res;
+
+                (self.pc.wrapping_add(2), 16)
+            }
+            Instruction::ADC(target) => match target {
+                Arithmetic::A => {
+                    self.reg.a = self.add_with_carry(self.reg.a);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::B => {
+                    self.reg.a = self.add_with_carry(self.reg.b);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::C => {
+                    self.reg.a = self.add_with_carry(self.reg.c);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::D => {
+                    self.reg.a = self.add_with_carry(self.reg.d);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::E => {
+                    self.reg.a = self.add_with_carry(self.reg.e);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::F => {
+                    self.reg.a = self.add_with_carry(u8::from(self.reg.f));
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::H => {
+                    self.reg.a = self.add_with_carry(self.reg.h);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::L => {
+                    self.reg.a = self.add_with_carry(self.reg.l);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::D8 => {
+                    self.reg.a = self.add_with_carry(self.read_next_byte());
+                    (self.pc.wrapping_add(2), 8)
+                }
+                Arithmetic::HLI => {
+                    self.reg.a = self.add_with_carry(self.mem.read_byte(self.reg.get_hl()));
+                    (self.pc.wrapping_add(1), 8)
+                }
+            },
+            Instruction::SUB(target) => match target {
+                Arithmetic::A => {
+                    self.reg.a = self.sub_without_carry(self.reg.a);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::B => {
+                    self.reg.a = self.sub_without_carry(self.reg.b);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::C => {
+                    self.reg.a = self.sub_without_carry(self.reg.c);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::D => {
+                    self.reg.a = self.sub_without_carry(self.reg.d);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::E => {
+                    self.reg.a = self.sub_without_carry(self.reg.e);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::F => {
+                    self.reg.a = self.sub_without_carry(u8::from(self.reg.f));
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::H => {
+                    self.reg.a = self.sub_without_carry(self.reg.h);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::L => {
+                    self.reg.a = self.sub_without_carry(self.reg.l);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::D8 => {
+                    self.reg.a = self.sub_without_carry(self.read_next_byte());
+                    (self.pc.wrapping_add(2), 8)
+                }
+                Arithmetic::HLI => {
+                    self.reg.a = self.sub_without_carry(self.mem.read_byte(self.reg.get_hl()));
+                    (self.pc.wrapping_add(1), 8)
+                }
+            },
+            Instruction::SBC(target) => match target {
+                Arithmetic::A => {
+                    self.reg.a = self.sub_with_carry(self.reg.a);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::B => {
+                    self.reg.a = self.sub_with_carry(self.reg.b);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::C => {
+                    self.reg.a = self.sub_with_carry(self.reg.c);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::D => {
+                    self.reg.a = self.sub_with_carry(self.reg.d);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::E => {
+                    self.reg.a = self.sub_with_carry(self.reg.e);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::F => {
+                    self.reg.a = self.sub_with_carry(u8::from(self.reg.f));
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::H => {
+                    self.reg.a = self.sub_with_carry(self.reg.h);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::L => {
+                    self.reg.a = self.sub_with_carry(self.reg.l);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::D8 => {
+                    self.reg.a = self.sub_with_carry(self.read_next_byte());
+                    (self.pc.wrapping_add(2), 8)
+                }
+                Arithmetic::HLI => {
+                    self.reg.a = self.sub_with_carry(self.mem.read_byte(self.reg.get_hl()));
+                    (self.pc.wrapping_add(1), 8)
+                }
+            },
         }
     }
 
@@ -344,5 +502,32 @@ impl CPU {
         self.reg.f.half_carry = (self.reg.a & 0xF) + (lhs & 0xF) > 0xF;
 
         sum
+    }
+    fn add_with_carry(&mut self, lhs: u8) -> u8 {
+        let (add1, carry) = self.reg.a.overflowing_add(lhs);
+        let (add2, carry2) = add1.overflowing_add(self.reg.f.carry as u8);
+        self.reg.f.zero = add2 == 0;
+        self.reg.f.sub = false;
+        self.reg.f.carry = carry || carry2;
+        self.reg.f.half_carry = ((self.reg.a & 0xF) + (lhs & 0xF) + (self.reg.f.carry as u8)) > 0xF;
+        add2
+    }
+    fn sub_without_carry(&mut self, lhs: u8) -> u8 {
+        let (value, overflow) = self.reg.a.overflowing_sub(lhs);
+        self.reg.f.zero = value == 0;
+        self.reg.f.sub = true;
+        self.reg.f.carry = overflow;
+        self.reg.f.half_carry = (self.reg.a & 0xF) < (value & 0xF);
+
+        value
+    }
+    fn sub_with_carry(&mut self, lhs: u8) -> u8 {
+        let (sub, carry) = self.reg.a.overflowing_sub(lhs);
+        let (sub2, carry2) = sub.overflowing_sub(self.reg.f.carry as u8);
+        self.reg.f.zero = sub2 == 0;
+        self.reg.f.sub = true;
+        self.reg.f.carry = carry || carry2;
+        self.reg.f.half_carry = (self.reg.a & 0xF) < (lhs & 0xF) + (self.reg.f.carry as u8);
+        sub2
     }
 }
