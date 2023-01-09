@@ -1,9 +1,10 @@
 use crate::{
     instructions::{
-        Arithmetic, Indirect, Instruction, LoadByteSource, LoadByteTarget, LoadType, LoadWordTarget,
+        Arithmetic, IncDecTarget, Indirect, Instruction, LoadByteSource, LoadByteTarget, LoadType,
+        LoadWordTarget,
     },
     memory::Memory,
-    registers::{self, Registers},
+    registers::{self, FlagsReg, Registers},
 };
 
 struct CPU {
@@ -14,10 +15,12 @@ struct CPU {
 }
 
 impl CPU {
-    fn run(&mut self) {
+    fn run(&mut self) -> u8 {
         let ins = self.fetch();
 
-        self.execute(ins);
+        let (pc, mut cycles) = self.execute(ins);
+
+        cycles
     }
 
     fn decode(&self, ins: u8) -> Instruction {
@@ -32,9 +35,9 @@ impl CPU {
         self.decode(ins)
     }
 
-    fn execute(&mut self, ins: Instruction) {
+    fn execute(&mut self, ins: Instruction) -> (u16, u8) {
         match ins {
-            Instruction::NOP => self.pc += 1,
+            Instruction::NOP => (self.pc.wrapping_add(1), 4),
             Instruction::LD(load_type) => match load_type {
                 LoadType::Byte(target, source) => {
                     let source_value = match source {
@@ -59,10 +62,10 @@ impl CPU {
                         LoadByteTarget::HLI => self.mem.write_byte(self.reg.get_hl(), source_value),
                     };
                     match source {
-                        LoadByteSource::D8 => self.pc.wrapping_add(2),
-                        LoadByteSource::HLI => self.pc.wrapping_add(1),
-                        _ => self.pc.wrapping_add(1),
-                    };
+                        LoadByteSource::D8 => (self.pc.wrapping_add(2), 8),
+                        LoadByteSource::HLI => (self.pc.wrapping_add(1), 8),
+                        _ => (self.pc.wrapping_add(1), 4),
+                    }
                 }
                 LoadType::Word(target) => {
                     let word = self.read_next_word();
@@ -72,7 +75,7 @@ impl CPU {
                         LoadWordTarget::HL => self.reg.set_hl(word),
                         LoadWordTarget::SP => self.sp = word,
                     };
-                    self.pc.wrapping_add(3);
+                    (self.pc.wrapping_add(3), 12)
                 }
                 LoadType::AFromIndirect(source) => {
                     self.reg.a = match source {
@@ -95,9 +98,9 @@ impl CPU {
                     };
 
                     match source {
-                        Indirect::WordIndirect => self.pc.wrapping_add(3),
-                        _ => self.pc.wrapping_add(1),
-                    };
+                        Indirect::WordIndirect => (self.pc.wrapping_add(3), 16),
+                        _ => (self.pc.wrapping_add(1), 8),
+                    }
                 }
                 LoadType::IndirectFromA(target) => {
                     let a = self.reg.a;
@@ -131,23 +134,23 @@ impl CPU {
                     };
 
                     match target {
-                        Indirect::WordIndirect => self.pc.wrapping_add(3),
-                        _ => self.pc.wrapping_add(1),
-                    };
+                        Indirect::WordIndirect => (self.pc.wrapping_add(3), 16),
+                        _ => (self.pc.wrapping_add(1), 8),
+                    }
                 }
                 LoadType::ByteAddressFromA => {
                     let offset = self.read_next_byte() as u16;
                     self.mem.write_byte(0xFF00 + offset, self.reg.a);
-                    self.pc.wrapping_add(2);
+                    (self.pc.wrapping_add(2), 12)
                 }
                 LoadType::AFromByteAddress => {
                     let offset = self.read_next_byte() as u16;
                     self.reg.a = self.mem.read_byte(0xFF00 + offset);
-                    self.pc.wrapping_add(2);
+                    (self.pc.wrapping_add(2), 12)
                 }
                 LoadType::SPFromHL => {
                     self.sp = self.reg.get_hl();
-                    self.pc.wrapping_add(1);
+                    (self.pc.wrapping_add(1), 8)
                 }
                 LoadType::IndirectFromSP => {
                     let address = self.read_next_word();
@@ -155,7 +158,7 @@ impl CPU {
                     self.mem.write_byte(address, (sp & 0xFF) as u8);
                     self.mem
                         .write_byte(address.wrapping_add(1), ((sp & 0xFF00) >> 8) as u8);
-                    self.pc.wrapping_add(3);
+                    (self.pc.wrapping_add(3), 20)
                 }
                 LoadType::HLFromSPN => {
                     let value = self.read_next_byte() as i8 as i16 as u16;
@@ -165,38 +168,160 @@ impl CPU {
                     self.reg.f.sub = false;
                     self.reg.f.half_carry = (self.sp & 0xF) + (value & 0xF) > 0xF;
                     self.reg.f.carry = (self.sp & 0xFF) + (value & 0xFF) > 0xFF;
-                    self.pc.wrapping_add(2);
+                    (self.pc.wrapping_add(2), 12)
                 }
             },
+            Instruction::INC(target) => {
+                match target {
+                    IncDecTarget::A => {
+                        self.reg.a = self.reg.a.wrapping_add(1);
+                    }
+                    IncDecTarget::B => {
+                        self.reg.b = self.reg.b.wrapping_add(1);
+                    }
+                    IncDecTarget::C => {
+                        self.reg.c = self.reg.c.wrapping_add(1);
+                    }
+                    IncDecTarget::D => {
+                        self.reg.d = self.reg.d.wrapping_add(1);
+                    }
+                    IncDecTarget::E => {
+                        self.reg.e = self.reg.e.wrapping_add(1);
+                    }
+                    IncDecTarget::F => {
+                        self.reg.f = FlagsReg::from(u8::from(self.reg.f).wrapping_add(1));
+                    }
+                    IncDecTarget::H => {
+                        self.reg.h = self.reg.h.wrapping_add(1);
+                    }
+                    IncDecTarget::L => {
+                        self.reg.l = self.reg.l.wrapping_add(1);
+                    }
+                    IncDecTarget::HLI => {
+                        let hl = self.reg.get_hl();
+                        let res = self.mem.read_byte(hl).wrapping_add(1);
+                        self.mem.write_byte(hl, res);
+                    }
+                    IncDecTarget::BC => {
+                        let bc = self.reg.get_bc();
+                        self.reg.set_bc(bc.wrapping_add(1));
+                    }
+                    IncDecTarget::DE => {
+                        let de = self.reg.get_de();
+                        self.reg.set_de(de.wrapping_add(1));
+                    }
+                    IncDecTarget::HL => {
+                        let hl = self.reg.get_hl();
+                        self.reg.set_hl(hl.wrapping_add(1));
+                    }
+                    IncDecTarget::SP => {
+                        let sp = self.sp;
+                        self.sp = sp.wrapping_add(1);
+                    }
+                }
+                let cycles = match target {
+                    IncDecTarget::BC | IncDecTarget::DE | IncDecTarget::HL | IncDecTarget::SP => 8,
+                    IncDecTarget::HLI => 12,
+                    _ => 4,
+                };
+                (self.pc.wrapping_add(1), cycles)
+            }
+            Instruction::DEC(target) => {
+                match target {
+                    IncDecTarget::A => {
+                        self.reg.a = self.reg.a.wrapping_sub(1);
+                    }
+                    IncDecTarget::B => {
+                        self.reg.b = self.reg.b.wrapping_sub(1);
+                    }
+                    IncDecTarget::C => {
+                        self.reg.c = self.reg.c.wrapping_sub(1);
+                    }
+                    IncDecTarget::D => {
+                        self.reg.d = self.reg.d.wrapping_sub(1);
+                    }
+                    IncDecTarget::E => {
+                        self.reg.e = self.reg.e.wrapping_sub(1);
+                    }
+                    IncDecTarget::F => {
+                        self.reg.f = FlagsReg::from(u8::from(self.reg.f).wrapping_sub(1));
+                    }
+                    IncDecTarget::H => {
+                        self.reg.h = self.reg.h.wrapping_sub(1);
+                    }
+                    IncDecTarget::L => {
+                        self.reg.l = self.reg.l.wrapping_sub(1);
+                    }
+                    IncDecTarget::HLI => {
+                        let hl = self.reg.get_hl();
+                        let res = self.mem.read_byte(hl).wrapping_sub(1);
+                        self.mem.write_byte(hl, res);
+                    }
+                    IncDecTarget::BC => {
+                        let bc = self.reg.get_bc();
+                        self.reg.set_bc(bc.wrapping_sub(1));
+                    }
+                    IncDecTarget::DE => {
+                        let de = self.reg.get_de();
+                        self.reg.set_de(de.wrapping_sub(1));
+                    }
+                    IncDecTarget::HL => {
+                        let hl = self.reg.get_hl();
+                        self.reg.set_hl(hl.wrapping_sub(1));
+                    }
+                    IncDecTarget::SP => {
+                        let sp = self.sp;
+                        self.sp = sp.wrapping_sub(1);
+                    }
+                }
+                let cycles = match target {
+                    IncDecTarget::BC | IncDecTarget::DE | IncDecTarget::HL | IncDecTarget::SP => 8,
+                    IncDecTarget::HLI => 12,
+                    _ => 4,
+                };
+                (self.pc.wrapping_add(1), cycles)
+            }
 
             Instruction::ADD(target) => match target {
                 Arithmetic::A => {
-                    let lhs = self.reg.a;
-                    self.reg.a = self.add_without_carry(lhs);
+                    self.reg.a = self.add_without_carry(self.reg.a);
+                    (self.pc.wrapping_add(1), 4)
                 }
                 Arithmetic::B => {
-                    let lhs = self.reg.b;
-                    self.reg.a = self.add_without_carry(lhs);
+                    self.reg.a = self.add_without_carry(self.reg.b);
+                    (self.pc.wrapping_add(1), 4)
                 }
                 Arithmetic::C => {
-                    let lhs = self.reg.c;
-                    self.reg.a = self.add_without_carry(lhs);
+                    self.reg.a = self.add_without_carry(self.reg.c);
+                    (self.pc.wrapping_add(1), 4)
                 }
                 Arithmetic::D => {
-                    let lhs = self.reg.d;
-                    self.reg.a = self.add_without_carry(lhs);
+                    self.reg.a = self.add_without_carry(self.reg.d);
+                    (self.pc.wrapping_add(1), 4)
                 }
                 Arithmetic::E => {
-                    let lhs = self.reg.e;
-                    self.reg.a = self.add_without_carry(lhs);
+                    self.reg.a = self.add_without_carry(self.reg.e);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::F => {
+                    self.reg.a = self.add_without_carry(u8::from(self.reg.f));
+                    (self.pc.wrapping_add(1), 4)
                 }
                 Arithmetic::H => {
-                    let lhs = self.reg.h;
-                    self.reg.a = self.add_without_carry(lhs);
+                    self.reg.a = self.add_without_carry(self.reg.h);
+                    (self.pc.wrapping_add(1), 4)
                 }
                 Arithmetic::L => {
-                    let lhs = self.reg.l;
-                    self.reg.a = self.add_without_carry(lhs);
+                    self.reg.a = self.add_without_carry(self.reg.l);
+                    (self.pc.wrapping_add(1), 4)
+                }
+                Arithmetic::D8 => {
+                    self.reg.a = self.add_without_carry(self.read_next_byte());
+                    (self.pc.wrapping_add(2), 8)
+                }
+                Arithmetic::HLI => {
+                    self.reg.a = self.add_without_carry(self.mem.read_byte(self.reg.get_hl()));
+                    (self.pc.wrapping_add(1), 8)
                 }
             },
         }

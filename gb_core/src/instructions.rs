@@ -1,16 +1,9 @@
-pub enum Arithmetic {
-    A,
-    B,
-    C,
-    D,
-    E,
-    H,
-    L,
-}
-
 pub enum Instruction {
     NOP,
     LD(LoadType),
+
+    INC(IncDecTarget),
+    DEC(IncDecTarget),
 
     ADD(Arithmetic),
 }
@@ -62,4 +55,33 @@ pub enum LoadType {
     SPFromHL,
     HLFromSPN,
     IndirectFromSP,
+}
+
+pub enum IncDecTarget {
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    H,
+    L,
+    HLI,
+    BC,
+    DE,
+    HL,
+    SP,
+}
+
+pub enum Arithmetic {
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    H,
+    L,
+    D8,
+    HLI,
 }
