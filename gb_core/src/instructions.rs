@@ -45,6 +45,18 @@ pub enum Instruction {
     HALT,
     DI,
     EI,
+
+    BIT(PreFixTarget, BitPosition),
+    RES(PreFixTarget, BitPosition),
+    SET(PreFixTarget, BitPosition),
+    SRL(PreFixTarget),
+    RR(PreFixTarget),
+    RL(PreFixTarget),
+    RRC(PreFixTarget),
+    RLC(PreFixTarget),
+    SRA(PreFixTarget),
+    SLA(PreFixTarget),
+    SWAP(PreFixTarget),
 }
 
 pub enum LoadByteTarget {
@@ -170,6 +182,41 @@ impl RSTLocation {
             RSTLocation::x28 => 0x28,
             RSTLocation::x30 => 0x30,
             RSTLocation::x38 => 0x38,
+        }
+    }
+}
+
+pub enum PreFixTarget {
+    A,
+    B,
+    C,
+    D,
+    E,
+    H,
+    L,
+    HLI,
+}
+pub enum BitPosition {
+    B0,
+    B1,
+    B2,
+    B3,
+    B4,
+    B5,
+    B6,
+    B7,
+}
+impl std::convert::From<BitPosition> for u8 {
+    fn from(position: BitPosition) -> u8 {
+        match position {
+            BitPosition::B0 => 0,
+            BitPosition::B1 => 1,
+            BitPosition::B2 => 2,
+            BitPosition::B3 => 3,
+            BitPosition::B4 => 4,
+            BitPosition::B5 => 5,
+            BitPosition::B6 => 6,
+            BitPosition::B7 => 7,
         }
     }
 }
