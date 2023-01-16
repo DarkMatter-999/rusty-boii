@@ -12,6 +12,19 @@ pub enum Instruction {
 
     SUB(Arithmetic),
     SBC(Arithmetic),
+
+    RLCA,
+    RRCA,
+
+    STOP,
+
+    CCF,
+    SCF,
+
+    RRA,
+    RLA,
+    CPL,
+    DAA,
 }
 
 pub enum LoadByteTarget {

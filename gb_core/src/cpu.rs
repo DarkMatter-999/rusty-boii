@@ -12,13 +12,18 @@ struct CPU {
     pc: u16,
     sp: u16,
     mem: Memory,
+    is_halted: bool,
 }
 
 impl CPU {
     fn run(&mut self) -> u8 {
         let ins = self.fetch();
 
-        let (pc, mut cycles) = self.execute(ins);
+        let (nextpc, mut cycles) = self.execute(ins);
+
+        if !self.is_halted {
+            self.pc = nextpc;
+        }
 
         cycles
     }
@@ -482,6 +487,99 @@ impl CPU {
                     (self.pc.wrapping_add(1), 8)
                 }
             },
+            Instruction::RLCA => {
+                let carry = (self.reg.a & 0x80) >> 7;
+                let new_value = self.reg.a.rotate_left(1) | carry;
+                self.reg.f.zero = false;
+                self.reg.f.sub = false;
+                self.reg.f.half_carry = false;
+                self.reg.f.carry = carry == 0x01;
+                self.reg.a = new_value;
+                (self.pc.wrapping_add(1), 4)
+            }
+            Instruction::RRCA => {
+                let new_value = self.reg.a.rotate_right(1);
+                self.reg.f.zero = false;
+                self.reg.f.sub = false;
+                self.reg.f.half_carry = false;
+                self.reg.f.carry = self.reg.a & 0b1 == 0b1;
+                self.reg.a = new_value;
+                (self.pc.wrapping_add(1), 4)
+            }
+            Instruction::STOP => {
+                self.is_halted = true;
+                (self.pc.wrapping_add(2), 4)
+            }
+
+            Instruction::CCF => {
+                self.reg.f.sub = false;
+                self.reg.f.half_carry = false;
+                self.reg.f.carry = !self.reg.f.carry;
+                (self.pc.wrapping_add(1), 4)
+            }
+            Instruction::SCF => {
+                self.reg.f.sub = false;
+                self.reg.f.half_carry = false;
+                self.reg.f.carry = true;
+                (self.pc.wrapping_add(1), 4)
+            }
+            Instruction::RRA => {
+                let carry_bit = if self.reg.f.carry { 1 } else { 0 } << 7;
+                let new_value = carry_bit | (self.reg.a >> 1);
+                self.reg.f.zero = false;
+                self.reg.f.sub = false;
+                self.reg.f.half_carry = false;
+                self.reg.f.carry = self.reg.a & 0b1 == 0b1;
+                self.reg.a = new_value;
+                (self.pc.wrapping_add(1), 4)
+            }
+            Instruction::RLA => {
+                let carry_bit = if self.reg.f.carry { 1 } else { 0 };
+                let new_value = (self.reg.a << 1) | carry_bit;
+                self.reg.f.zero = false;
+                self.reg.f.sub = false;
+                self.reg.f.half_carry = false;
+                self.reg.f.carry = (self.reg.a & 0x80) == 0x80;
+                self.reg.a = new_value;
+                (self.pc.wrapping_add(1), 4)
+            }
+            Instruction::CPL => {
+                self.reg.a = !self.reg.a;
+                self.reg.f.sub = true;
+                self.reg.f.half_carry = true;
+                (self.pc.wrapping_add(1), 4)
+            }
+            Instruction::DAA => {
+                let flags = self.reg.f;
+                let mut carry = false;
+
+                let result = if !flags.sub {
+                    let mut result = self.reg.a;
+                    if flags.carry || self.reg.a > 0x99 {
+                        carry = true;
+                        result = result.wrapping_add(0x60);
+                    }
+                    if flags.half_carry || self.reg.a & 0x0F > 0x09 {
+                        result = result.wrapping_add(0x06);
+                    }
+                    result
+                } else if flags.carry {
+                    carry = true;
+                    let add = if flags.half_carry { 0x9A } else { 0xA0 };
+                    self.reg.a.wrapping_add(add)
+                } else if flags.half_carry {
+                    self.reg.a.wrapping_add(0xFA)
+                } else {
+                    self.reg.a
+                };
+
+                self.reg.f.zero = result == 0;
+                self.reg.f.half_carry = false;
+                self.reg.f.carry = carry;
+
+                self.reg.a = result;
+                (self.pc.wrapping_add(1), 4)
+            }
         }
     }
 
