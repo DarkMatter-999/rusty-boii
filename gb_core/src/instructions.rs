@@ -25,6 +25,22 @@ pub enum Instruction {
     RLA,
     CPL,
     DAA,
+
+    JP(JumpTest),
+    JR(JumpTest),
+    JPI,
+
+    AND(Arithmetic),
+    OR(Arithmetic),
+    XOR(Arithmetic),
+    CP(Arithmetic),
+
+    PUSH(StackTarget),
+    POP(StackTarget),
+    CALL(JumpTest),
+    RET(JumpTest),
+    RETI,
+    RST(RSTLocation),
 }
 
 pub enum LoadByteTarget {
@@ -110,4 +126,46 @@ pub enum ADDHLTarget {
     DE,
     HL,
     SP,
+}
+
+#[derive(Copy, Clone, PartialEq)]
+pub enum JumpTest {
+    NotZero,
+    Zero,
+    NotCarry,
+    Carry,
+    Always,
+}
+
+pub enum StackTarget {
+    AF,
+    BC,
+    DE,
+    HL,
+}
+
+pub enum RSTLocation {
+    x00,
+    x08,
+    x10,
+    x18,
+    x20,
+    x28,
+    x30,
+    x38,
+}
+
+impl RSTLocation {
+    pub fn to_hex(&self) -> u16 {
+        match self {
+            RSTLocation::x00 => 0x00,
+            RSTLocation::x08 => 0x08,
+            RSTLocation::x10 => 0x10,
+            RSTLocation::x18 => 0x18,
+            RSTLocation::x20 => 0x20,
+            RSTLocation::x28 => 0x28,
+            RSTLocation::x30 => 0x30,
+            RSTLocation::x38 => 0x38,
+        }
+    }
 }

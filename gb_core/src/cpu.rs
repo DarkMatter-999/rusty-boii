@@ -1,7 +1,7 @@
 use crate::{
     instructions::{
-        ADDHLTarget, Arithmetic, IncDecTarget, Indirect, Instruction, LoadByteSource,
-        LoadByteTarget, LoadType, LoadWordTarget,
+        ADDHLTarget, Arithmetic, IncDecTarget, Indirect, Instruction, JumpTest, LoadByteSource,
+        LoadByteTarget, LoadType, LoadWordTarget, StackTarget,
     },
     memory::Memory,
     registers::{self, FlagsReg, Registers},
@@ -13,6 +13,7 @@ struct CPU {
     sp: u16,
     mem: Memory,
     is_halted: bool,
+    interrupts_enabled: bool,
 }
 
 impl CPU {
@@ -580,6 +581,188 @@ impl CPU {
                 self.reg.a = result;
                 (self.pc.wrapping_add(1), 4)
             }
+            Instruction::JP(target) => {
+                let jumpcondition = match target {
+                    JumpTest::NotZero => !self.reg.f.zero,
+                    JumpTest::NotCarry => !self.reg.f.carry,
+                    JumpTest::Zero => self.reg.f.zero,
+                    JumpTest::Carry => self.reg.f.carry,
+                    JumpTest::Always => true,
+                };
+                self.jump(jumpcondition)
+            }
+            Instruction::JR(target) => {
+                let jump_condition = match target {
+                    JumpTest::NotZero => !self.reg.f.zero,
+                    JumpTest::NotCarry => !self.reg.f.carry,
+                    JumpTest::Zero => self.reg.f.zero,
+                    JumpTest::Carry => self.reg.f.carry,
+                    JumpTest::Always => true,
+                };
+                self.jump_rel(jump_condition)
+            }
+            Instruction::JPI => (self.reg.get_hl(), 4),
+            Instruction::AND(target) => {
+                let value = match target {
+                    Arithmetic::A => self.reg.a,
+                    Arithmetic::B => self.reg.b,
+                    Arithmetic::C => self.reg.c,
+                    Arithmetic::D => self.reg.d,
+                    Arithmetic::E => self.reg.e,
+                    Arithmetic::F => u8::from(self.reg.f),
+                    Arithmetic::H => self.reg.h,
+                    Arithmetic::L => self.reg.l,
+                    Arithmetic::D8 => self.read_next_byte(),
+                    Arithmetic::HLI => self.mem.read_byte(self.reg.get_hl()),
+                };
+                let n = self.reg.a & value;
+                self.reg.f.zero = n == 0;
+                self.reg.f.sub = false;
+                self.reg.f.half_carry = true;
+                self.reg.f.carry = false;
+                self.reg.a = n;
+                match target {
+                    Arithmetic::D8 => (self.pc.wrapping_add(2), 8),
+                    Arithmetic::HLI => (self.pc.wrapping_add(1), 8),
+                    _ => (self.pc.wrapping_add(1), 4),
+                }
+            }
+            Instruction::OR(target) => {
+                let value = match target {
+                    Arithmetic::A => self.reg.a,
+                    Arithmetic::B => self.reg.b,
+                    Arithmetic::C => self.reg.c,
+                    Arithmetic::D => self.reg.d,
+                    Arithmetic::E => self.reg.e,
+                    Arithmetic::F => u8::from(self.reg.f),
+                    Arithmetic::H => self.reg.h,
+                    Arithmetic::L => self.reg.l,
+                    Arithmetic::D8 => self.read_next_byte(),
+                    Arithmetic::HLI => self.mem.read_byte(self.reg.get_hl()),
+                };
+                let n = self.reg.a | value;
+                self.reg.f.zero = n == 0;
+                self.reg.f.sub = false;
+                self.reg.f.half_carry = true;
+                self.reg.f.carry = false;
+                self.reg.a = n;
+                match target {
+                    Arithmetic::D8 => (self.pc.wrapping_add(2), 8),
+                    Arithmetic::HLI => (self.pc.wrapping_add(1), 8),
+                    _ => (self.pc.wrapping_add(1), 4),
+                }
+            }
+            Instruction::XOR(target) => {
+                let value = match target {
+                    Arithmetic::A => self.reg.a,
+                    Arithmetic::B => self.reg.b,
+                    Arithmetic::C => self.reg.c,
+                    Arithmetic::D => self.reg.d,
+                    Arithmetic::E => self.reg.e,
+                    Arithmetic::F => u8::from(self.reg.f),
+                    Arithmetic::H => self.reg.h,
+                    Arithmetic::L => self.reg.l,
+                    Arithmetic::D8 => self.read_next_byte(),
+                    Arithmetic::HLI => self.mem.read_byte(self.reg.get_hl()),
+                };
+                let n = self.reg.a ^ value;
+                self.reg.f.zero = n == 0;
+                self.reg.f.sub = false;
+                self.reg.f.half_carry = true;
+                self.reg.f.carry = false;
+                self.reg.a = n;
+                match target {
+                    Arithmetic::D8 => (self.pc.wrapping_add(2), 8),
+                    Arithmetic::HLI => (self.pc.wrapping_add(1), 8),
+                    _ => (self.pc.wrapping_add(1), 4),
+                }
+            }
+            Instruction::CP(target) => {
+                let value = match target {
+                    Arithmetic::A => self.reg.a,
+                    Arithmetic::B => self.reg.b,
+                    Arithmetic::C => self.reg.c,
+                    Arithmetic::D => self.reg.d,
+                    Arithmetic::E => self.reg.e,
+                    Arithmetic::F => u8::from(self.reg.f),
+                    Arithmetic::H => self.reg.h,
+                    Arithmetic::L => self.reg.l,
+                    Arithmetic::D8 => self.read_next_byte(),
+                    Arithmetic::HLI => self.mem.read_byte(self.reg.get_hl()),
+                };
+
+                self.reg.f.zero = self.reg.a == value;
+                self.reg.f.sub = true;
+                self.reg.f.half_carry = (self.reg.a & 0xF) < (value & 0xF);
+                self.reg.f.carry = self.reg.a < value;
+
+                match target {
+                    Arithmetic::D8 => (self.pc.wrapping_add(2), 8),
+                    Arithmetic::HLI => (self.pc.wrapping_add(1), 8),
+                    _ => (self.pc.wrapping_add(1), 4),
+                }
+            }
+            Instruction::PUSH(target) => {
+                let value = match target {
+                    StackTarget::AF => self.reg.get_af(),
+                    StackTarget::BC => self.reg.get_bc(),
+                    StackTarget::DE => self.reg.get_de(),
+                    StackTarget::HL => self.reg.get_hl(),
+                };
+                self.push(value);
+                (self.pc.wrapping_add(1), 16)
+            }
+            Instruction::POP(target) => {
+                let result = self.pop();
+                match target {
+                    StackTarget::AF => self.reg.set_af(result),
+                    StackTarget::BC => self.reg.set_bc(result),
+                    StackTarget::DE => self.reg.set_de(result),
+                    StackTarget::HL => self.reg.set_hl(result),
+                };
+                (self.pc.wrapping_add(1), 12)
+            }
+            Instruction::CALL(target) => {
+                let jumpcondition = match target {
+                    JumpTest::NotZero => !self.reg.f.zero,
+                    JumpTest::NotCarry => !self.reg.f.carry,
+                    JumpTest::Zero => self.reg.f.zero,
+                    JumpTest::Carry => self.reg.f.carry,
+                    JumpTest::Always => true,
+                    _ => panic!("Invalid call value recieved"),
+                };
+                self.call(jumpcondition)
+            }
+            Instruction::RET(target) => {
+                let jumpcondition = match target {
+                    JumpTest::NotZero => !self.reg.f.zero,
+                    JumpTest::NotCarry => !self.reg.f.carry,
+                    JumpTest::Zero => self.reg.f.zero,
+                    JumpTest::Carry => self.reg.f.carry,
+                    JumpTest::Always => true,
+                    _ => panic!("Invalid ret value recieved"),
+                };
+                self.ret(jumpcondition);
+
+                let next_pc = self.ret(jumpcondition);
+
+                let cycles = if jumpcondition && target == JumpTest::Always {
+                    16
+                } else if jumpcondition {
+                    20
+                } else {
+                    8
+                };
+                (next_pc, cycles)
+            }
+            Instruction::RETI => {
+                self.interrupts_enabled = true;
+                (self.pop(), 16)
+            }
+            Instruction::RST(target) => {
+                self.push(self.pc.wrapping_add(1));
+                (target.to_hex(), 24)
+            }
         }
     }
 
@@ -627,5 +810,63 @@ impl CPU {
         self.reg.f.carry = carry || carry2;
         self.reg.f.half_carry = (self.reg.a & 0xF) < (lhs & 0xF) + (self.reg.f.carry as u8);
         sub2
+    }
+    fn jump(&mut self, jump: bool) -> (u16, u8) {
+        if jump {
+            let lsb = self.mem.read_byte(self.pc + 1) as u16;
+            let msb = self.mem.read_byte(self.pc + 2) as u16;
+            (((msb << 8) | lsb), 16)
+        } else {
+            (self.pc.wrapping_add(3), 12)
+        }
+    }
+    fn jump_rel(&self, should_jump: bool) -> (u16, u8) {
+        let next_step = self.pc.wrapping_add(2);
+        if should_jump {
+            let offset = self.read_next_byte() as i8;
+            let pc = if offset >= 0 {
+                next_step.wrapping_add(offset as u16)
+            } else {
+                next_step.wrapping_sub(offset.abs() as u16)
+            };
+            (pc, 16)
+        } else {
+            (next_step, 12)
+        }
+    }
+    fn push(&mut self, value: u16) {
+        self.sp = self.sp.wrapping_sub(1);
+        self.mem.write_byte(self.sp, ((value & 0xFF00) >> 8) as u8);
+
+        self.sp = self.sp.wrapping_sub(1);
+        self.mem.write_byte(self.sp, (value & 0xFF) as u8);
+    }
+
+    fn pop(&mut self) -> u16 {
+        let lsb = self.mem.read_byte(self.sp) as u16;
+        self.sp = self.sp.wrapping_add(1);
+
+        let msb = self.mem.read_byte(self.sp) as u16;
+        self.sp = self.sp.wrapping_add(1);
+
+        (msb << 8) | lsb
+    }
+
+    fn call(&mut self, jump: bool) -> (u16, u8) {
+        let nextpc = self.pc.wrapping_add(3);
+        if jump {
+            self.push(nextpc);
+            (self.read_next_word(), 24)
+        } else {
+            (nextpc, 12)
+        }
+    }
+
+    fn ret(&mut self, jump: bool) -> u16 {
+        if jump {
+            self.pop()
+        } else {
+            self.pc.wrapping_add(1)
+        }
     }
 }
