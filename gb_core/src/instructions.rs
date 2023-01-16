@@ -41,6 +41,10 @@ pub enum Instruction {
     RET(JumpTest),
     RETI,
     RST(RSTLocation),
+
+    HALT,
+    DI,
+    EI,
 }
 
 pub enum LoadByteTarget {

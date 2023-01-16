@@ -3,7 +3,7 @@ use crate::{
         ADDHLTarget, Arithmetic, IncDecTarget, Indirect, Instruction, JumpTest, LoadByteSource,
         LoadByteTarget, LoadType, LoadWordTarget, StackTarget,
     },
-    memory::Memory,
+    memory::{Memory, LCDSTAT_VECTOR, TIMER_VECTOR, VBLANK_VECTOR},
     registers::{self, FlagsReg, Registers},
 };
 
@@ -22,8 +22,35 @@ impl CPU {
 
         let (nextpc, mut cycles) = self.execute(ins);
 
+        if self.mem.has_interrupt() {
+            self.is_halted = false;
+        }
+
         if !self.is_halted {
             self.pc = nextpc;
+        }
+
+        let mut interrupted = false;
+        if self.interrupts_enabled {
+            if self.mem.interrupt_enable.vblank && self.mem.interrupt_flag.vblank {
+                interrupted = true;
+                self.mem.interrupt_flag.vblank = false;
+                self.interrupt(VBLANK_VECTOR)
+            }
+            if self.mem.interrupt_enable.lcdstat && self.mem.interrupt_flag.lcdstat {
+                interrupted = true;
+                self.mem.interrupt_flag.lcdstat = false;
+                self.interrupt(LCDSTAT_VECTOR)
+            }
+            if self.mem.interrupt_enable.timer && self.mem.interrupt_flag.timer {
+                interrupted = true;
+                self.mem.interrupt_flag.timer = false;
+                self.interrupt(TIMER_VECTOR)
+            }
+        }
+
+        if interrupted {
+            cycles += 12;
         }
 
         cycles
@@ -763,6 +790,18 @@ impl CPU {
                 self.push(self.pc.wrapping_add(1));
                 (target.to_hex(), 24)
             }
+            Instruction::HALT => {
+                self.is_halted = true;
+                (self.pc.wrapping_add(1), 4)
+            }
+            Instruction::DI => {
+                self.interrupts_enabled = false;
+                (self.pc.wrapping_add(1), 4)
+            }
+            Instruction::EI => {
+                self.interrupts_enabled = true;
+                (self.pc.wrapping_add(1), 4)
+            }
         }
     }
 
@@ -868,5 +907,12 @@ impl CPU {
         } else {
             self.pc.wrapping_add(1)
         }
+    }
+
+    fn interrupt(&mut self, location: u16) {
+        self.interrupts_enabled = false;
+        self.push(self.pc);
+        self.pc = location;
+        self.mem.step(12);
     }
 }
