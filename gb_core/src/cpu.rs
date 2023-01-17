@@ -3,11 +3,11 @@ use crate::{
         ADDHLTarget, Arithmetic, BitPosition, IncDecTarget, Indirect, Instruction, JumpTest,
         LoadByteSource, LoadByteTarget, LoadType, LoadWordTarget, PreFixTarget, StackTarget,
     },
-    memory::{Memory, LCDSTAT_VECTOR, TIMER_VECTOR, VBLANK_VECTOR},
+    memory::{self, Memory, LCDSTAT_VECTOR, TIMER_VECTOR, VBLANK_VECTOR},
     registers::{self, FlagsReg, Registers},
 };
 
-struct CPU {
+pub struct CPU {
     reg: Registers,
     pc: u16,
     sp: u16,
@@ -17,10 +17,22 @@ struct CPU {
 }
 
 impl CPU {
-    fn run(&mut self) -> u8 {
-        let ins = self.fetch();
+    pub fn new(boot_rom: Option<Vec<u8>>, game_rom: Vec<u8>) -> CPU {
+        CPU {
+            reg: Registers::new(),
+            pc: 0x0,
+            sp: 0x00,
+            mem: Memory::new(boot_rom, game_rom),
+            is_halted: false,
+            interrupts_enabled: true,
+        }
+    }
 
+    pub fn run(&mut self) -> u8 {
+        let ins = self.fetch();
         let (nextpc, mut cycles) = self.execute(ins);
+
+        self.mem.step(cycles);
 
         if self.mem.has_interrupt() {
             self.is_halted = false;
@@ -56,16 +68,25 @@ impl CPU {
         cycles
     }
 
-    fn decode(&self, ins: u8) -> Instruction {
-        match ins {
-            _ => return Instruction::NOP,
+    fn decode(&self, ins: u8, prefix: bool) -> Instruction {
+        println!("0x{:x}\t pc: 0x{:x}", ins, self.pc);
+        if let Some(instruction) = Instruction::from_byte(ins, prefix) {
+            instruction
+        } else {
+            panic!("Invalid instruction recieved at 0x{:x}", ins);
         }
     }
 
     fn fetch(&self) -> Instruction {
-        let ins = self.mem.read_byte(self.pc);
+        let mut ins = self.mem.read_byte(self.pc);
 
-        self.decode(ins)
+        let prefix = ins == 0xcb;
+
+        if prefix {
+            ins = self.mem.read_byte(self.pc + 1);
+        }
+
+        self.decode(ins, prefix)
     }
 
     fn execute(&mut self, ins: Instruction) -> (u16, u8) {
