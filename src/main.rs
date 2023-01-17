@@ -1,7 +1,7 @@
 use gb_core::cpu::CPU;
 use std::io::Read;
 fn main() {
-    let boot_buffer = buffer_from_file("./roms/dmg0_boot.bin");
+    let boot_buffer = buffer_from_file("./roms/dmg_boot.bin");
     let game_buffer = buffer_from_file("./roms/Tetris (World) (Rev A).gb");
 
     let mut cpu = CPU::new(Some(boot_buffer), game_buffer);

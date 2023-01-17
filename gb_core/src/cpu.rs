@@ -3,8 +3,8 @@ use crate::{
         ADDHLTarget, Arithmetic, BitPosition, IncDecTarget, Indirect, Instruction, JumpTest,
         LoadByteSource, LoadByteTarget, LoadType, LoadWordTarget, PreFixTarget, StackTarget,
     },
-    memory::{self, Memory, LCDSTAT_VECTOR, TIMER_VECTOR, VBLANK_VECTOR},
-    registers::{self, FlagsReg, Registers},
+    memory::{Memory, LCDSTAT_VECTOR, TIMER_VECTOR, VBLANK_VECTOR},
+    registers::{FlagsReg, Registers},
 };
 
 pub struct CPU {
@@ -69,8 +69,8 @@ impl CPU {
     }
 
     fn decode(&self, ins: u8, prefix: bool) -> Instruction {
-        println!("0x{:x}\t pc: 0x{:x}", ins, self.pc);
         if let Some(instruction) = Instruction::from_byte(ins, prefix) {
+            println!("0x{:X}\t pc: 0x{:X} \t{:?}", ins, self.pc, instruction);
             instruction
         } else {
             panic!("Invalid instruction recieved at 0x{:x}", ins);
@@ -121,6 +121,7 @@ impl CPU {
                         _ => (self.pc.wrapping_add(1), 4),
                     }
                 }
+
                 LoadType::Word(target) => {
                     let word = self.read_next_word();
                     match target {
@@ -131,6 +132,7 @@ impl CPU {
                     };
                     (self.pc.wrapping_add(3), 12)
                 }
+
                 LoadType::AFromIndirect(source) => {
                     self.reg.a = match source {
                         Indirect::BCIndirect => self.mem.read_byte(self.reg.get_bc()),
@@ -156,6 +158,7 @@ impl CPU {
                         _ => (self.pc.wrapping_add(1), 8),
                     }
                 }
+
                 LoadType::IndirectFromA(target) => {
                     let a = self.reg.a;
                     match target {
@@ -192,20 +195,24 @@ impl CPU {
                         _ => (self.pc.wrapping_add(1), 8),
                     }
                 }
+
                 LoadType::ByteAddressFromA => {
                     let offset = self.read_next_byte() as u16;
                     self.mem.write_byte(0xFF00 + offset, self.reg.a);
                     (self.pc.wrapping_add(2), 12)
                 }
+
                 LoadType::AFromByteAddress => {
                     let offset = self.read_next_byte() as u16;
                     self.reg.a = self.mem.read_byte(0xFF00 + offset);
                     (self.pc.wrapping_add(2), 12)
                 }
+
                 LoadType::SPFromHL => {
                     self.sp = self.reg.get_hl();
                     (self.pc.wrapping_add(1), 8)
                 }
+
                 LoadType::IndirectFromSP => {
                     let address = self.read_next_word();
                     let sp = self.sp;
@@ -214,6 +221,7 @@ impl CPU {
                         .write_byte(address.wrapping_add(1), ((sp & 0xFF00) >> 8) as u8);
                     (self.pc.wrapping_add(3), 20)
                 }
+
                 LoadType::HLFromSPN => {
                     let value = self.read_next_byte() as i8 as i16 as u16;
                     let result = self.sp.wrapping_add(value);
@@ -647,6 +655,7 @@ impl CPU {
                     JumpTest::Carry => self.reg.f.carry,
                     JumpTest::Always => true,
                 };
+
                 self.jump_rel(jump_condition)
             }
             Instruction::JPI => (self.reg.get_hl(), 4),
@@ -1090,7 +1099,7 @@ impl CPU {
     }
 
     fn read_next_byte(&self) -> u8 {
-        self.mem.read_byte(self.pc)
+        self.mem.read_byte(self.pc + 1)
     }
 
     fn add_without_carry(&mut self, lhs: u8) -> u8 {

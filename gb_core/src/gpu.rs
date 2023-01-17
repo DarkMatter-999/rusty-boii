@@ -1,5 +1,6 @@
-use crate::memory::{OAM_SIZE, VRAM_SIZE};
+use crate::memory::{OAM_SIZE, VRAM_BEGIN, VRAM_SIZE};
 
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Color {
     White = 255,
     LightGray = 192,
@@ -61,6 +62,25 @@ fn empty_tile() -> Tile {
     [[Default::default(); 8]; 8]
 }
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum TileMap {
+    X9800,
+    X9C00,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum BackgroundAndWindowDataSelect {
+    X8000,
+    X8800,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum ObjectSize {
+    OS8X8,
+    OS8X16,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Mode {
     HorizontalBlank,
     VerticalBlank,
@@ -168,6 +188,10 @@ pub struct GPU {
     pub hblank_interrupt_enabled: bool,
     pub line_check: u8,
     pub line_equals_line_check: bool,
+    pub window_tile_map: TileMap,
+    pub background_tile_map: TileMap,
+    pub background_and_window_data_select: BackgroundAndWindowDataSelect,
+    pub object_size: ObjectSize,
     pub obj_0_color_1: Color,
     pub obj_0_color_2: Color,
     pub obj_0_color_3: Color,
@@ -201,6 +225,10 @@ impl GPU {
             hblank_interrupt_enabled: false,
             line_check: 0,
             line_equals_line_check: false,
+            window_tile_map: TileMap::X9800,
+            background_tile_map: TileMap::X9800,
+            background_and_window_data_select: BackgroundAndWindowDataSelect::X8800,
+            object_size: ObjectSize::OS8X8,
             obj_0_color_1: Color::LightGray,
             obj_0_color_2: Color::DarkGray,
             obj_0_color_3: Color::Black,
@@ -240,6 +268,186 @@ impl GPU {
             };
 
             self.tile_set[tile_index][row_index][pixel_index] = value;
+        }
+    }
+
+    pub fn step(&mut self, cycles: u8) -> InterruptRequest {
+        let mut request = InterruptRequest::None;
+        if !self.lcd_display_enabled {
+            return request;
+        }
+        self.cycles += cycles as u16;
+
+        let mode = self.mode;
+        match mode {
+            Mode::HorizontalBlank => {
+                if self.cycles >= 200 {
+                    self.cycles = self.cycles % 200;
+                    self.line += 1;
+
+                    if self.line >= 144 {
+                        self.mode = Mode::VerticalBlank;
+                        request.add(InterruptRequest::VBlank);
+                        if self.vblank_interrupt_enabled {
+                            request.add(InterruptRequest::LCDStat)
+                        }
+                    } else {
+                        self.mode = Mode::OAMAccess;
+                        if self.oam_interrupt_enabled {
+                            request.add(InterruptRequest::LCDStat)
+                        }
+                    }
+                    self.set_equal_lines_check(&mut request);
+                }
+            }
+            Mode::VerticalBlank => {
+                if self.cycles >= 456 {
+                    self.cycles = self.cycles % 456;
+                    self.line += 1;
+                    if self.line == 154 {
+                        self.mode = Mode::OAMAccess;
+                        self.line = 0;
+                        if self.oam_interrupt_enabled {
+                            request.add(InterruptRequest::LCDStat)
+                        }
+                    }
+                    self.set_equal_lines_check(&mut request);
+                }
+            }
+            Mode::OAMAccess => {
+                if self.cycles >= 80 {
+                    self.cycles = self.cycles % 80;
+                    self.mode = Mode::VRAMAccess;
+                }
+            }
+            Mode::VRAMAccess => {
+                if self.cycles >= 172 {
+                    self.cycles = self.cycles % 172;
+                    if self.hblank_interrupt_enabled {
+                        request.add(InterruptRequest::LCDStat)
+                    }
+                    self.mode = Mode::HorizontalBlank;
+                    self.render_scan_line()
+                }
+            }
+        }
+        request
+    }
+
+    fn set_equal_lines_check(&mut self, request: &mut InterruptRequest) {
+        let line_equals_line_check = self.line == self.line_check;
+        if line_equals_line_check && self.line_equals_line_check_interrupt_enabled {
+            request.add(InterruptRequest::LCDStat);
+        }
+        self.line_equals_line_check = line_equals_line_check;
+    }
+
+    fn render_scan_line(&mut self) {
+        let mut scan_line: [TilePixelValue; SCREEN_WIDTH] = [Default::default(); SCREEN_WIDTH];
+        if self.background_display_enabled {
+            let mut tile_x_index = self.viewport_x_offset / 8;
+            let tile_y_index = self.line.wrapping_add(self.viewport_y_offset);
+            let tile_offset = (tile_y_index as u16 / 8) * 32u16;
+
+            let background_tile_map = if self.background_tile_map == TileMap::X9800 {
+                0x9800
+            } else {
+                0x9C00
+            };
+            let tile_map_begin = background_tile_map - VRAM_BEGIN;
+            let tile_map_offset = tile_map_begin + tile_offset as usize;
+
+            let row_y_offset = tile_y_index % 8;
+            let mut pixel_x_index = self.viewport_x_offset % 8;
+
+            if self.background_and_window_data_select == BackgroundAndWindowDataSelect::X8800 {
+                panic!("TODO: support 0x8800 background and window data select");
+            }
+
+            let mut canvas_buffer_offset = self.line as usize * SCREEN_WIDTH * 4;
+            for line_x in 0..SCREEN_WIDTH {
+                let tile_index = self.vram[tile_map_offset + tile_x_index as usize];
+
+                let tile_value = self.tile_set[tile_index as usize][row_y_offset as usize]
+                    [pixel_x_index as usize];
+                let color = self.tile_value_to_background_color(&tile_value);
+
+                self.canvas_buffer[canvas_buffer_offset] = color as u8;
+                self.canvas_buffer[canvas_buffer_offset + 1] = color as u8;
+                self.canvas_buffer[canvas_buffer_offset + 2] = color as u8;
+                self.canvas_buffer[canvas_buffer_offset + 3] = 255;
+                canvas_buffer_offset += 4;
+                scan_line[line_x] = tile_value;
+                pixel_x_index = (pixel_x_index + 1) % 8;
+
+                if pixel_x_index == 0 {
+                    tile_x_index = tile_x_index + 1;
+                }
+                if self.background_and_window_data_select == BackgroundAndWindowDataSelect::X8800 {
+                    panic!("TODO: support 0x8800 background and window data select");
+                }
+            }
+        }
+
+        if self.object_display_enabled {
+            let object_height = if self.object_size == ObjectSize::OS8X16 {
+                16
+            } else {
+                8
+            };
+            for object in self.object_data.iter() {
+                let line = self.line as i16;
+                if object.y <= line && object.y + object_height > line {
+                    let pixel_y_offset = line - object.y;
+                    let tile_index = if object_height == 16 && (!object.yflip && pixel_y_offset > 7)
+                        || (object.yflip && pixel_y_offset <= 7)
+                    {
+                        object.tile + 1
+                    } else {
+                        object.tile
+                    };
+
+                    let tile = self.tile_set[tile_index as usize];
+                    let tile_row = if object.yflip {
+                        tile[(7 - (pixel_y_offset % 8)) as usize]
+                    } else {
+                        tile[(pixel_y_offset % 8) as usize]
+                    };
+
+                    let canvas_y_offset = line as i32 * SCREEN_WIDTH as i32;
+                    let mut canvas_offset = ((canvas_y_offset + object.x as i32) * 4) as usize;
+                    for x in 0..8i16 {
+                        let pixel_x_offset = if object.xflip { (7 - x) } else { x } as usize;
+                        let x_offset = object.x + x;
+                        let pixel = tile_row[pixel_x_offset];
+                        if x_offset >= 0
+                            && x_offset < SCREEN_WIDTH as i16
+                            && pixel != TilePixelValue::Zero
+                            && (object.priority
+                                || scan_line[x_offset as usize] == TilePixelValue::Zero)
+                        {
+                            let color = self.tile_value_to_background_color(&pixel);
+
+                            self.canvas_buffer[canvas_offset + 0] = color as u8;
+                            self.canvas_buffer[canvas_offset + 1] = color as u8;
+                            self.canvas_buffer[canvas_offset + 2] = color as u8;
+                            self.canvas_buffer[canvas_offset + 3] = 255;
+                        }
+                        canvas_offset += 4;
+                    }
+                }
+            }
+        }
+
+        if self.window_display_enabled {}
+    }
+
+    fn tile_value_to_background_color(&self, tile_value: &TilePixelValue) -> Color {
+        match tile_value {
+            TilePixelValue::Zero => self.background_colors.0,
+            TilePixelValue::One => self.background_colors.1,
+            TilePixelValue::Two => self.background_colors.2,
+            TilePixelValue::Three => self.background_colors.3,
         }
     }
 }

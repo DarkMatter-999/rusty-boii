@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub enum Instruction {
     NOP,
     LD(LoadType),
@@ -884,6 +885,7 @@ impl Instruction {
     }
 }
 
+#[derive(Debug)]
 pub enum LoadByteTarget {
     A,
     B,
@@ -895,6 +897,7 @@ pub enum LoadByteTarget {
     HLI,
 }
 
+#[derive(Debug)]
 pub enum LoadByteSource {
     A,
     B,
@@ -906,12 +909,16 @@ pub enum LoadByteSource {
     HLI,
     D8,
 }
+
+#[derive(Debug)]
 pub enum LoadWordTarget {
     BC,
     DE,
     HL,
     SP,
 }
+
+#[derive(Debug)]
 pub enum Indirect {
     BCIndirect,
     DEIndirect,
@@ -921,6 +928,7 @@ pub enum Indirect {
     LastByteIndirect,
 }
 
+#[derive(Debug)]
 pub enum LoadType {
     Byte(LoadByteTarget, LoadByteSource),
     Word(LoadWordTarget),
@@ -933,6 +941,7 @@ pub enum LoadType {
     IndirectFromSP,
 }
 
+#[derive(Debug)]
 pub enum IncDecTarget {
     A,
     B,
@@ -949,6 +958,7 @@ pub enum IncDecTarget {
     SP,
 }
 
+#[derive(Debug)]
 pub enum Arithmetic {
     A,
     B,
@@ -962,6 +972,7 @@ pub enum Arithmetic {
     HLI,
 }
 
+#[derive(Debug)]
 pub enum ADDHLTarget {
     BC,
     DE,
@@ -969,7 +980,7 @@ pub enum ADDHLTarget {
     SP,
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum JumpTest {
     NotZero,
     Zero,
@@ -978,6 +989,7 @@ pub enum JumpTest {
     Always,
 }
 
+#[derive(Debug)]
 pub enum StackTarget {
     AF,
     BC,
@@ -985,6 +997,7 @@ pub enum StackTarget {
     HL,
 }
 
+#[derive(Debug)]
 pub enum RSTLocation {
     x00,
     x08,
@@ -1011,6 +1024,7 @@ impl RSTLocation {
     }
 }
 
+#[derive(Debug)]
 pub enum PreFixTarget {
     A,
     B,
@@ -1021,6 +1035,8 @@ pub enum PreFixTarget {
     L,
     HLI,
 }
+
+#[derive(Debug)]
 pub enum BitPosition {
     B0,
     B1,
