@@ -1,4 +1,4 @@
-use crate::interrupts::InterruptFlags;
+use crate::{gpu::GPU, interrupts::InterruptFlags};
 
 const RAM_SIZE: usize = 0xFFFF;
 
@@ -58,6 +58,7 @@ pub struct Memory {
     external_ram: [u8; EXTERNAL_RAM_SIZE],
     pub interrupt_enable: InterruptFlags,
     pub interrupt_flag: InterruptFlags,
+    pub gpu: GPU,
 }
 
 impl Memory {
@@ -92,6 +93,7 @@ impl Memory {
             zero_page: [0; ZERO_PAGE_SIZE],
             interrupt_enable: InterruptFlags::new(),
             interrupt_flag: InterruptFlags::new(),
+            gpu: GPU::new(),
         }
     }
     pub fn read_byte(&self, addr: u16) -> u8 {
@@ -108,7 +110,7 @@ impl Memory {
             }
             ROM_BANK_0_BEGIN..=ROM_BANK_0_END => self.rom_bank_0[addr],
             ROM_BANK_N_BEGIN..=ROM_BANK_N_END => self.rom_bank_n[addr - ROM_BANK_N_BEGIN],
-            VRAM_BEGIN..=VRAM_END => 0, // TODO gpu.vram[addr - VRAM_BEGIN],
+            VRAM_BEGIN..=VRAM_END => self.gpu.vram[addr - VRAM_BEGIN],
             EXTERNAL_RAM_BEGIN..=EXTERNAL_RAM_END => self.external_ram[addr - EXTERNAL_RAM_BEGIN],
             WORKING_RAM_BEGIN..=WORKING_RAM_END => self.working_ram[addr - WORKING_RAM_BEGIN],
             ECHO_RAM_BEGIN..=ECHO_RAM_END => self.working_ram[addr - ECHO_RAM_BEGIN],
@@ -132,7 +134,7 @@ impl Memory {
                 self.rom_bank_0[address] = val;
             }
             VRAM_BEGIN..=VRAM_END => {
-                // TODO gpu.write_vram(address - VRAM_BEGIN, val);
+                self.gpu.write_vram(address - VRAM_BEGIN, val);
             }
             EXTERNAL_RAM_BEGIN..=EXTERNAL_RAM_END => {
                 self.external_ram[address - EXTERNAL_RAM_BEGIN] = val;
