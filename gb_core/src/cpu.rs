@@ -72,14 +72,14 @@ impl CPU {
 
     fn decode(&self, ins: u8, prefix: bool) -> Instruction {
         if let Some(instruction) = Instruction::from_byte(ins, prefix) {
-            println!(
-                "0x{:X}\t pc: 0x{:X} \t f:{:X} \t{:?}",
-                ins,
-                self.pc,
-                u8::from(self.reg.f),
-                instruction
-            );
-            sleep(Duration::from_millis(100));
+            // println!(
+            //     "0x{:X}\t pc: 0x{:X} \t f:{:X} \t{:?}",
+            //     ins,
+            //     self.pc,
+            //     u8::from(self.reg.f),
+            //     instruction
+            // );
+            // sleep(Duration::from_millis(100));
             instruction
         } else {
             panic!("Invalid instruction recieved at 0x{:x}", ins);
@@ -799,8 +799,6 @@ impl CPU {
                     JumpTest::Always => true,
                     _ => panic!("Invalid ret value recieved"),
                 };
-                self.ret(jumpcondition);
-
                 let next_pc = self.ret(jumpcondition);
 
                 let cycles = if jumpcondition && target == JumpTest::Always {

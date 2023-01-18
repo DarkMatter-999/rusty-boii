@@ -1,5 +1,7 @@
 use gb_core::cpu::CPU;
-use sdl2::{event::Event, keyboard::Keycode, render::Canvas, video::Window};
+use sdl2::{
+    event::Event, keyboard::Keycode, pixels::Color, rect::Rect, render::Canvas, video::Window,
+};
 use std::{io::Read, time::Instant};
 
 pub const SCREEN_WIDTH: u32 = 160;
@@ -87,9 +89,22 @@ fn run(cpu: &mut CPU) {
 }
 
 fn draw_screen(cpu: &CPU, canvas: &mut Canvas<Window>) {
-    // for (i, pixel) in cpu.mem.gpu.canvas_buffer.chunks(4).enumerate() {
-    //     println!("{:?}", pixel);
-    // }
-    // canvas.present();
+    for (i, pixel) in cpu.mem.gpu.canvas_buffer.chunks(4).enumerate() {
+        // Convert our 1D array's index into a 2D (x,y) position
+        let x = (i as u32 % SCREEN_WIDTH) as i32;
+        let y = (i as u32 / SCREEN_WIDTH) as i32;
+
+        // buffer[i] = (pixel[3] as u32) << 24
+        //     | (pixel[2] as u32) << 16
+        //     | (pixel[1] as u32) << 8
+        //     | (pixel[0] as u32);
+
+        canvas.set_draw_color(Color::RGBA(pixel[0], pixel[1], pixel[2], pixel[3]));
+
+        // Draw a rectangle at (x,y), scaled up by our SCALE value
+        let rect = Rect::new(x, y, 1, 1);
+        canvas.fill_rect(rect).unwrap();
+    }
+    canvas.present();
     // println!("{:?}", cpu.mem.gpu.canvas_buffer);
 }
