@@ -948,7 +948,6 @@ pub enum IncDecTarget {
     C,
     D,
     E,
-    F,
     H,
     L,
     HLI,

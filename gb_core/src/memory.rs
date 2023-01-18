@@ -125,7 +125,7 @@ impl Memory {
             EXTERNAL_RAM_BEGIN..=EXTERNAL_RAM_END => self.external_ram[addr - EXTERNAL_RAM_BEGIN],
             WORKING_RAM_BEGIN..=WORKING_RAM_END => self.working_ram[addr - WORKING_RAM_BEGIN],
             ECHO_RAM_BEGIN..=ECHO_RAM_END => self.working_ram[addr - ECHO_RAM_BEGIN],
-            OAM_BEGIN..=OAM_END => 0, // TODO gpu.oam[addr - OAM_BEGIN],
+            OAM_BEGIN..=OAM_END => self.gpu.oam[addr - OAM_BEGIN],
             UNUSED_BEGIN..=UNUSED_END => 0,
             IO_REGISTERS_BEGIN..=IO_REGISTERS_END => self.read_io_register(addr),
             ZERO_PAGE_BEGIN..=ZERO_PAGE_END => self.zero_page[addr - ZERO_PAGE_BEGIN],
@@ -154,7 +154,7 @@ impl Memory {
                 self.working_ram[address - WORKING_RAM_BEGIN] = val;
             }
             OAM_BEGIN..=OAM_END => {
-                // TODO gpu.write_oam(address - OAM_BEGIN, val);
+                self.gpu.write_oam(address - OAM_BEGIN, val);
             }
             IO_REGISTERS_BEGIN..=IO_REGISTERS_END => {
                 self.write_io_register(address, val);

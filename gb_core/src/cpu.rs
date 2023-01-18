@@ -1,3 +1,5 @@
+use std::{thread::sleep, time::Duration};
+
 use crate::{
     instructions::{
         ADDHLTarget, Arithmetic, BitPosition, IncDecTarget, Indirect, Instruction, JumpTest,
@@ -11,7 +13,7 @@ pub struct CPU {
     reg: Registers,
     pc: u16,
     sp: u16,
-    mem: Memory,
+    pub mem: Memory,
     is_halted: bool,
     interrupts_enabled: bool,
 }
@@ -70,7 +72,14 @@ impl CPU {
 
     fn decode(&self, ins: u8, prefix: bool) -> Instruction {
         if let Some(instruction) = Instruction::from_byte(ins, prefix) {
-            println!("0x{:X}\t pc: 0x{:X} \t{:?}", ins, self.pc, instruction);
+            println!(
+                "0x{:X}\t pc: 0x{:X} \t f:{:X} \t{:?}",
+                ins,
+                self.pc,
+                u8::from(self.reg.f),
+                instruction
+            );
+            sleep(Duration::from_millis(100));
             instruction
         } else {
             panic!("Invalid instruction recieved at 0x{:x}", ins);
@@ -121,7 +130,6 @@ impl CPU {
                         _ => (self.pc.wrapping_add(1), 4),
                     }
                 }
-
                 LoadType::Word(target) => {
                     let word = self.read_next_word();
                     match target {
@@ -132,7 +140,6 @@ impl CPU {
                     };
                     (self.pc.wrapping_add(3), 12)
                 }
-
                 LoadType::AFromIndirect(source) => {
                     self.reg.a = match source {
                         Indirect::BCIndirect => self.mem.read_byte(self.reg.get_bc()),
@@ -158,7 +165,6 @@ impl CPU {
                         _ => (self.pc.wrapping_add(1), 8),
                     }
                 }
-
                 LoadType::IndirectFromA(target) => {
                     let a = self.reg.a;
                     match target {
@@ -195,24 +201,20 @@ impl CPU {
                         _ => (self.pc.wrapping_add(1), 8),
                     }
                 }
-
                 LoadType::ByteAddressFromA => {
                     let offset = self.read_next_byte() as u16;
                     self.mem.write_byte(0xFF00 + offset, self.reg.a);
                     (self.pc.wrapping_add(2), 12)
                 }
-
                 LoadType::AFromByteAddress => {
                     let offset = self.read_next_byte() as u16;
                     self.reg.a = self.mem.read_byte(0xFF00 + offset);
                     (self.pc.wrapping_add(2), 12)
                 }
-
                 LoadType::SPFromHL => {
                     self.sp = self.reg.get_hl();
                     (self.pc.wrapping_add(1), 8)
                 }
-
                 LoadType::IndirectFromSP => {
                     let address = self.read_next_word();
                     let sp = self.sp;
@@ -221,7 +223,6 @@ impl CPU {
                         .write_byte(address.wrapping_add(1), ((sp & 0xFF00) >> 8) as u8);
                     (self.pc.wrapping_add(3), 20)
                 }
-
                 LoadType::HLFromSPN => {
                     let value = self.read_next_byte() as i8 as i16 as u16;
                     let result = self.sp.wrapping_add(value);
@@ -233,52 +234,52 @@ impl CPU {
                     (self.pc.wrapping_add(2), 12)
                 }
             },
+
             Instruction::INC(target) => {
                 match target {
                     IncDecTarget::A => {
-                        self.reg.a = self.reg.a.wrapping_add(1);
+                        self.reg.a = self.inc8bit(self.reg.a);
                     }
                     IncDecTarget::B => {
-                        self.reg.b = self.reg.b.wrapping_add(1);
+                        self.reg.b = self.inc8bit(self.reg.b);
                     }
                     IncDecTarget::C => {
-                        self.reg.c = self.reg.c.wrapping_add(1);
+                        self.reg.c = self.inc8bit(self.reg.c);
                     }
                     IncDecTarget::D => {
-                        self.reg.d = self.reg.d.wrapping_add(1);
+                        self.reg.d = self.inc8bit(self.reg.d);
                     }
                     IncDecTarget::E => {
-                        self.reg.e = self.reg.e.wrapping_add(1);
-                    }
-                    IncDecTarget::F => {
-                        self.reg.f = FlagsReg::from(u8::from(self.reg.f).wrapping_add(1));
+                        self.reg.e = self.inc8bit(self.reg.e);
                     }
                     IncDecTarget::H => {
-                        self.reg.h = self.reg.h.wrapping_add(1);
+                        self.reg.h = self.inc8bit(self.reg.h);
                     }
                     IncDecTarget::L => {
-                        self.reg.l = self.reg.l.wrapping_add(1);
+                        self.reg.l = self.inc8bit(self.reg.l);
                     }
                     IncDecTarget::HLI => {
                         let hl = self.reg.get_hl();
-                        let res = self.mem.read_byte(hl).wrapping_add(1);
-                        self.mem.write_byte(hl, res);
+                        let amount = self.mem.read_byte(hl);
+                        let result = self.inc8bit(amount);
+                        self.mem.write_byte(hl, result);
                     }
                     IncDecTarget::BC => {
-                        let bc = self.reg.get_bc();
-                        self.reg.set_bc(bc.wrapping_add(1));
+                        let bc = self.inc16bit(self.reg.get_bc());
+                        self.reg.set_bc(bc);
                     }
                     IncDecTarget::DE => {
-                        let de = self.reg.get_de();
-                        self.reg.set_de(de.wrapping_add(1));
+                        let de = self.inc16bit(self.reg.get_de());
+                        self.reg.set_de(de);
                     }
                     IncDecTarget::HL => {
-                        let hl = self.reg.get_hl();
-                        self.reg.set_hl(hl.wrapping_add(1));
+                        let hl = self.inc16bit(self.reg.get_hl());
+                        self.reg.set_hl(hl);
                     }
                     IncDecTarget::SP => {
-                        let sp = self.sp;
-                        self.sp = sp.wrapping_add(1);
+                        let amount = self.sp;
+                        let result = self.inc16bit(amount);
+                        self.sp = result;
                     }
                 }
                 let cycles = match target {
@@ -291,49 +292,48 @@ impl CPU {
             Instruction::DEC(target) => {
                 match target {
                     IncDecTarget::A => {
-                        self.reg.a = self.reg.a.wrapping_sub(1);
+                        self.reg.a = self.dec8bit(self.reg.a);
                     }
                     IncDecTarget::B => {
-                        self.reg.b = self.reg.b.wrapping_sub(1);
+                        self.reg.b = self.dec8bit(self.reg.b);
                     }
                     IncDecTarget::C => {
-                        self.reg.c = self.reg.c.wrapping_sub(1);
+                        self.reg.c = self.dec8bit(self.reg.c);
                     }
                     IncDecTarget::D => {
-                        self.reg.d = self.reg.d.wrapping_sub(1);
+                        self.reg.d = self.dec8bit(self.reg.d);
                     }
                     IncDecTarget::E => {
-                        self.reg.e = self.reg.e.wrapping_sub(1);
-                    }
-                    IncDecTarget::F => {
-                        self.reg.f = FlagsReg::from(u8::from(self.reg.f).wrapping_sub(1));
+                        self.reg.e = self.dec8bit(self.reg.e);
                     }
                     IncDecTarget::H => {
-                        self.reg.h = self.reg.h.wrapping_sub(1);
+                        self.reg.h = self.dec8bit(self.reg.h);
                     }
                     IncDecTarget::L => {
-                        self.reg.l = self.reg.l.wrapping_sub(1);
+                        self.reg.l = self.dec8bit(self.reg.l);
                     }
                     IncDecTarget::HLI => {
                         let hl = self.reg.get_hl();
-                        let res = self.mem.read_byte(hl).wrapping_sub(1);
-                        self.mem.write_byte(hl, res);
+                        let amount = self.mem.read_byte(hl);
+                        let result = self.dec8bit(amount);
+                        self.mem.write_byte(hl, result);
                     }
                     IncDecTarget::BC => {
-                        let bc = self.reg.get_bc();
-                        self.reg.set_bc(bc.wrapping_sub(1));
+                        let bc = self.dec16bit(self.reg.get_bc());
+                        self.reg.set_bc(bc);
                     }
                     IncDecTarget::DE => {
-                        let de = self.reg.get_de();
-                        self.reg.set_de(de.wrapping_sub(1));
+                        let de = self.dec16bit(self.reg.get_de());
+                        self.reg.set_de(de);
                     }
                     IncDecTarget::HL => {
-                        let hl = self.reg.get_hl();
-                        self.reg.set_hl(hl.wrapping_sub(1));
+                        let hl = self.dec16bit(self.reg.get_hl());
+                        self.reg.set_hl(hl);
                     }
                     IncDecTarget::SP => {
-                        let sp = self.sp;
-                        self.sp = sp.wrapping_sub(1);
+                        let amount = self.sp;
+                        let result = self.dec16bit(amount);
+                        self.sp = result;
                     }
                 }
                 let cycles = match target {
@@ -700,7 +700,7 @@ impl CPU {
                 let n = self.reg.a | value;
                 self.reg.f.zero = n == 0;
                 self.reg.f.sub = false;
-                self.reg.f.half_carry = true;
+                self.reg.f.half_carry = false;
                 self.reg.f.carry = false;
                 self.reg.a = n;
                 match target {
@@ -725,7 +725,7 @@ impl CPU {
                 let n = self.reg.a ^ value;
                 self.reg.f.zero = n == 0;
                 self.reg.f.sub = false;
-                self.reg.f.half_carry = true;
+                self.reg.f.half_carry = false;
                 self.reg.f.carry = false;
                 self.reg.a = n;
                 match target {
@@ -834,18 +834,17 @@ impl CPU {
             }
             Instruction::BIT(target, bit_position) => {
                 match target {
-                    PreFixTarget::A => self.reg.a = self.bit_test(self.reg.a, bit_position),
-                    PreFixTarget::B => self.reg.b = self.bit_test(self.reg.b, bit_position),
-                    PreFixTarget::C => self.reg.c = self.bit_test(self.reg.c, bit_position),
-                    PreFixTarget::D => self.reg.d = self.bit_test(self.reg.d, bit_position),
-                    PreFixTarget::E => self.reg.e = self.bit_test(self.reg.e, bit_position),
-                    PreFixTarget::H => self.reg.h = self.bit_test(self.reg.h, bit_position),
-                    PreFixTarget::L => self.reg.l = self.bit_test(self.reg.l, bit_position),
+                    PreFixTarget::A => self.bit_test(self.reg.a, bit_position),
+                    PreFixTarget::B => self.bit_test(self.reg.b, bit_position),
+                    PreFixTarget::C => self.bit_test(self.reg.c, bit_position),
+                    PreFixTarget::D => self.bit_test(self.reg.d, bit_position),
+                    PreFixTarget::E => self.bit_test(self.reg.e, bit_position),
+                    PreFixTarget::H => self.bit_test(self.reg.h, bit_position),
+                    PreFixTarget::L => self.bit_test(self.reg.l, bit_position),
                     PreFixTarget::HLI => {
                         let hl = self.reg.get_hl();
                         let value = self.mem.read_byte(hl);
-                        let result = self.bit_test(value, bit_position);
-                        self.mem.write_byte(hl, result);
+                        self.bit_test(value, bit_position);
                     }
                 }
                 match target {
@@ -1205,13 +1204,12 @@ impl CPU {
         self.mem.step(12);
     }
 
-    fn bit_test(&mut self, value: u8, bit_position: BitPosition) -> u8 {
+    fn bit_test(&mut self, value: u8, bit_position: BitPosition) {
         let bit_position: u8 = bit_position.into();
         let result = (value >> bit_position) & 0b1;
         self.reg.f.zero = result == 0;
         self.reg.f.sub = false;
         self.reg.f.half_carry = true;
-        result
     }
     fn reset_bit(&mut self, value: u8, bit_position: BitPosition) -> u8 {
         let bit_position: u8 = bit_position.into();
@@ -1288,5 +1286,28 @@ impl CPU {
         self.reg.f.half_carry = false;
         self.reg.f.carry = false;
         new_value
+    }
+
+    fn inc8bit(&mut self, value: u8) -> u8 {
+        let new_value = value.wrapping_add(1);
+        self.reg.f.zero = new_value == 0;
+        self.reg.f.sub = false;
+        self.reg.f.half_carry = value & 0xF == 0xF;
+        new_value
+    }
+
+    fn inc16bit(&mut self, value: u16) -> u16 {
+        value.wrapping_add(1)
+    }
+
+    fn dec8bit(&mut self, value: u8) -> u8 {
+        let new_value = value.wrapping_sub(1);
+        self.reg.f.zero = new_value == 0;
+        self.reg.f.sub = true;
+        self.reg.f.half_carry = value & 0xF == 0x0;
+        new_value
+    }
+    fn dec16bit(&mut self, value: u16) -> u16 {
+        value.wrapping_sub(1)
     }
 }

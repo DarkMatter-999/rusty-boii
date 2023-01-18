@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 gb_core = {path="./gb_core"}
+sdl2 = "*"

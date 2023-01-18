@@ -334,6 +334,33 @@ impl GPU {
         request
     }
 
+    pub fn write_oam(&mut self, index: usize, value: u8) {
+        self.oam[index] = value;
+        let object_index = index / 4;
+        if object_index > NUMBER_OF_OBJECTS {
+            return;
+        }
+
+        let byte = index % 4;
+
+        let mut data = self.object_data.get_mut(object_index).unwrap();
+        match byte {
+            0 => data.y = (value as i16) - 0x10,
+            1 => data.x = (value as i16) - 0x8,
+            2 => data.tile = value,
+            _ => {
+                data.palette = if (value & 0x10) != 0 {
+                    ObjectPalette::One
+                } else {
+                    ObjectPalette::Zero
+                };
+                data.xflip = (value & 0x20) != 0;
+                data.yflip = (value & 0x40) != 0;
+                data.priority = (value & 0x80) == 0;
+            }
+        }
+    }
+
     fn set_equal_lines_check(&mut self, request: &mut InterruptRequest) {
         let line_equals_line_check = self.line == self.line_check;
         if line_equals_line_check && self.line_equals_line_check_interrupt_enabled {
@@ -343,6 +370,7 @@ impl GPU {
     }
 
     fn render_scan_line(&mut self) {
+        // println!("Here");
         let mut scan_line: [TilePixelValue; SCREEN_WIDTH] = [Default::default(); SCREEN_WIDTH];
         if self.background_display_enabled {
             let mut tile_x_index = self.viewport_x_offset / 8;
