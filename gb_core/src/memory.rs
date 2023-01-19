@@ -1,4 +1,5 @@
 use crate::{
+    controller::{self, Controller},
     gpu::{BackgroundAndWindowDataSelect, InterruptRequest, ObjectSize, TileMap, GPU},
     interrupts::InterruptFlags,
 };
@@ -70,6 +71,7 @@ pub struct Memory {
     pub interrupt_enable: InterruptFlags,
     pub interrupt_flag: InterruptFlags,
     pub gpu: GPU,
+    pub controller: Controller,
 }
 
 impl Memory {
@@ -105,6 +107,7 @@ impl Memory {
             interrupt_enable: InterruptFlags::new(),
             interrupt_flag: InterruptFlags::new(),
             gpu: GPU::new(),
+            controller: Controller::new(),
         }
     }
     pub fn read_byte(&self, addr: u16) -> u8 {
@@ -152,6 +155,9 @@ impl Memory {
             }
             WORKING_RAM_BEGIN..=WORKING_RAM_END => {
                 self.working_ram[address - WORKING_RAM_BEGIN] = val;
+            }
+            ECHO_RAM_BEGIN..=ECHO_RAM_END => {
+                self.working_ram[address - ECHO_RAM_BEGIN] = val;
             }
             OAM_BEGIN..=OAM_END => {
                 self.gpu.write_oam(address - OAM_BEGIN, val);
@@ -204,7 +210,7 @@ impl Memory {
 
     fn read_io_register(&self, addr: usize) -> u8 {
         match addr {
-            0xFF00 => 0,
+            0xFF00 => self.controller.to_byte(),
             0xFF01 => 0, // TODO: serial
             0xFF02 => 0, // TODO: serial
             0xFF04 => 0,
@@ -250,7 +256,13 @@ impl Memory {
 
     fn write_io_register(&mut self, addr: usize, value: u8) {
         match addr {
-            0xFF00 => { /* Controller */ }
+            0xFF00 => {
+                self.controller.column = if (value & 0x20) == 0 {
+                    controller::Column::One
+                } else {
+                    controller::Column::Two
+                };
+            }
             0xFF01 => { /* Serial Transfer */ }
             0xFF02 => { /* Serial Transfer Control */ }
             0xFF04 => { /* TODO */ }

@@ -1,6 +1,7 @@
 use std::{thread::sleep, time::Duration};
 
 use crate::{
+    controller::Key,
     instructions::{
         ADDHLTarget, Arithmetic, BitPosition, IncDecTarget, Indirect, Instruction, JumpTest,
         LoadByteSource, LoadByteTarget, LoadType, LoadWordTarget, PreFixTarget, StackTarget,
@@ -11,7 +12,7 @@ use crate::{
 
 pub struct CPU {
     reg: Registers,
-    pc: u16,
+    pub pc: u16,
     sp: u16,
     pub mem: Memory,
     is_halted: bool,
@@ -72,13 +73,16 @@ impl CPU {
 
     fn decode(&self, ins: u8, prefix: bool) -> Instruction {
         if let Some(instruction) = Instruction::from_byte(ins, prefix) {
-            // println!(
-            //     "0x{:X}\t pc: 0x{:X} \t f:{:X} \t{:?}",
-            //     ins,
-            //     self.pc,
-            //     u8::from(self.reg.f),
-            //     instruction
-            // );
+            if (ins > 0xff) {
+                println!(
+                    "0x{:X}\t pc: 0x{:X} \t f:{:X} \t{:?}",
+                    ins,
+                    self.pc,
+                    u8::from(self.reg.f),
+                    instruction
+                );
+            }
+
             // sleep(Duration::from_millis(100));
             instruction
         } else {
@@ -1089,6 +1093,21 @@ impl CPU {
                 }
             }
         }
+    }
+
+    pub fn keypress(&mut self, key: Key, val: bool) {
+        match key {
+            Key::Up => self.mem.controller.up = val,
+            Key::Left => self.mem.controller.left = val,
+            Key::Down => self.mem.controller.down = val,
+            Key::Right => self.mem.controller.right = val,
+            Key::Select => self.mem.controller.select = val,
+            Key::Start => self.mem.controller.start = val,
+            Key::B => self.mem.controller.b = val,
+            Key::A => self.mem.controller.a = val,
+        }
+
+        println!("{:?} {} {:8b}", key, val, self.mem.controller.to_byte());
     }
 
     fn read_next_word(&self) -> u16 {

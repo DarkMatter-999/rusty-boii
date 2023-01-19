@@ -1,3 +1,4 @@
+pub mod controller;
 pub mod cpu;
 pub mod memory;
 

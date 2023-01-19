@@ -1,11 +1,13 @@
-use gb_core::cpu::CPU;
+use gb_core::{controller::Key, cpu::CPU};
 use sdl2::{
-    event::Event, keyboard::Keycode, pixels::Color, rect::Rect, render::Canvas, video::Window,
+    event::Event, keyboard::Keycode, pixels::Color, rect::Rect, render::Canvas, sys::KeyCode,
+    video::Window,
 };
 use std::{io::Read, time::Instant};
 
 pub const SCREEN_WIDTH: u32 = 160;
 pub const SCREEN_HEIGHT: u32 = 144;
+const SCALE: u32 = 4;
 
 const TICKS_PER_FRAME: usize = 70224;
 
@@ -24,7 +26,11 @@ fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
-        .window("GameBoy Emulator", SCREEN_WIDTH, SCREEN_HEIGHT)
+        .window(
+            "GameBoy Emulator",
+            SCREEN_WIDTH * SCALE,
+            SCREEN_HEIGHT * SCALE,
+        )
         .position_centered()
         .opengl()
         .build()
@@ -48,6 +54,27 @@ fn main() {
                     ..
                 } => {
                     break 'running;
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::R),
+                    ..
+                } => {
+                    cpu.pc = 0x00;
+                }
+
+                Event::KeyDown {
+                    keycode: Some(key), ..
+                } => {
+                    if let Some(k) = get_input(key) {
+                        cpu.keypress(k, true);
+                    }
+                }
+                Event::KeyUp {
+                    keycode: Some(key), ..
+                } => {
+                    if let Some(k) = get_input(key) {
+                        cpu.keypress(k, false);
+                    }
                 }
                 _ => (),
             }
@@ -94,17 +121,25 @@ fn draw_screen(cpu: &CPU, canvas: &mut Canvas<Window>) {
         let x = (i as u32 % SCREEN_WIDTH) as i32;
         let y = (i as u32 / SCREEN_WIDTH) as i32;
 
-        // buffer[i] = (pixel[3] as u32) << 24
-        //     | (pixel[2] as u32) << 16
-        //     | (pixel[1] as u32) << 8
-        //     | (pixel[0] as u32);
-
         canvas.set_draw_color(Color::RGBA(pixel[0], pixel[1], pixel[2], pixel[3]));
 
         // Draw a rectangle at (x,y), scaled up by our SCALE value
-        let rect = Rect::new(x, y, 1, 1);
+        let rect = Rect::new(x * SCALE as i32, y * SCALE as i32, SCALE, SCALE);
         canvas.fill_rect(rect).unwrap();
     }
     canvas.present();
-    // println!("{:?}", cpu.mem.gpu.canvas_buffer);
+}
+
+fn get_input(key: Keycode) -> Option<Key> {
+    match key {
+        Keycode::W => Some(Key::Up),
+        Keycode::A => Some(Key::Left),
+        Keycode::S => Some(Key::Down),
+        Keycode::D => Some(Key::Right),
+        Keycode::H => Some(Key::Select),
+        Keycode::J => Some(Key::Start),
+        Keycode::K => Some(Key::B),
+        Keycode::L => Some(Key::A),
+        _ => None,
+    }
 }
