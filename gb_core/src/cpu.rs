@@ -1095,21 +1095,6 @@ impl CPU {
         }
     }
 
-    pub fn keypress(&mut self, key: Key, val: bool) {
-        match key {
-            Key::Up => self.mem.controller.up = val,
-            Key::Left => self.mem.controller.left = val,
-            Key::Down => self.mem.controller.down = val,
-            Key::Right => self.mem.controller.right = val,
-            Key::Select => self.mem.controller.select = val,
-            Key::Start => self.mem.controller.start = val,
-            Key::B => self.mem.controller.b = val,
-            Key::A => self.mem.controller.a = val,
-        }
-
-        println!("{:?} {} {:8b}", key, val, self.mem.controller.to_byte());
-    }
-
     fn read_next_word(&self) -> u16 {
         ((self.mem.read_byte(self.pc + 2) as u16) << 8) | (self.mem.read_byte(self.pc + 1) as u16)
     }

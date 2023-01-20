@@ -66,14 +66,14 @@ fn main() {
                     keycode: Some(key), ..
                 } => {
                     if let Some(k) = get_input(key) {
-                        cpu.keypress(k, true);
+                        cpu.mem.controller.keydown(k);
                     }
                 }
                 Event::KeyUp {
                     keycode: Some(key), ..
                 } => {
                     if let Some(k) = get_input(key) {
-                        cpu.keypress(k, false);
+                        cpu.mem.controller.keyup(k);
                     }
                 }
                 _ => (),

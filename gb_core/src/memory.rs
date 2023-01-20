@@ -210,7 +210,7 @@ impl Memory {
 
     fn read_io_register(&self, addr: usize) -> u8 {
         match addr {
-            0xFF00 => self.controller.to_byte(),
+            0xFF00 => self.controller.read(),
             0xFF01 => 0, // TODO: serial
             0xFF02 => 0, // TODO: serial
             0xFF04 => 0,
@@ -256,13 +256,7 @@ impl Memory {
 
     fn write_io_register(&mut self, addr: usize, value: u8) {
         match addr {
-            0xFF00 => {
-                self.controller.column = if (value & 0x20) == 0 {
-                    controller::Column::One
-                } else {
-                    controller::Column::Two
-                };
-            }
+            0xFF00 => self.controller.write(value),
             0xFF01 => { /* Serial Transfer */ }
             0xFF02 => { /* Serial Transfer Control */ }
             0xFF04 => { /* TODO */ }

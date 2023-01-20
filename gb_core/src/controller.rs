@@ -1,93 +1,84 @@
-#[derive(PartialEq, Debug)]
-pub enum Column {
-    One,
-    Two,
+pub struct Controller {
+    row0: u8,
+    row1: u8,
+    data: u8,
+    pub interrupt: u8,
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone)]
 pub enum Key {
-    Start,
-    Select,
-    A,
-    B,
-    Up,
-    Down,
     Right,
     Left,
-}
-
-pub struct Controller {
-    pub column: Column,
-    pub start: bool,
-    pub select: bool,
-    pub b: bool,
-    pub a: bool,
-    pub down: bool,
-    pub up: bool,
-    pub left: bool,
-    pub right: bool,
+    Up,
+    Down,
+    A,
+    B,
+    Select,
+    Start,
 }
 
 impl Controller {
     pub fn new() -> Controller {
         Controller {
-            column: Column::One,
-            start: false,
-            select: false,
-            b: false,
-            a: false,
-            down: false,
-            up: false,
-            left: false,
-            right: false,
+            row0: 0x0F,
+            row1: 0x0F,
+            data: 0xFF,
+            interrupt: 0,
         }
     }
 
-    pub fn to_byte(&self) -> u8 {
-        println!("{:?}", self.column);
-        let columnbit = if self.column == Column::One {
-            1 << 4
-        } else {
-            1 << 5
-        };
-
-        let bit4 = (if self.col_select() {
-            !self.down
-        } else {
-            self.start
-        } as u8)
-            << 3;
-
-        let bit3 = (if self.col_select() {
-            !self.up
-        } else {
-            self.select
-        } as u8)
-            << 2;
-
-        let bit2 = (if self.col_select() {
-            !self.left
-        } else {
-            self.b
-        } as u8)
-            << 2;
-
-        let bit1 = (if self.col_select() {
-            !self.right
-        } else {
-            self.a
-        } as u8);
-
-        let rowbit = bit1 | bit2 | bit3 | bit4;
-
-        columnbit | rowbit
+    pub fn read(&self) -> u8 {
+        self.data
     }
 
-    fn col_select(&self) -> bool {
-        if self.column == Column::One {
-            true
-        } else {
-            false
+    pub fn write(&mut self, value: u8) {
+        self.data = (self.data & 0xCF) | (value & 0x30);
+        self.update();
+    }
+
+    fn update(&mut self) {
+        let current_values = self.data & 0xF;
+        let mut new_values = 0xF;
+
+        if self.data & 0x10 == 0x00 {
+            new_values &= self.row0;
         }
+        if self.data & 0x20 == 0x00 {
+            new_values &= self.row1;
+        }
+
+        if current_values == 0xF && new_values != 0xF {
+            self.interrupt |= 0x10;
+        }
+
+        self.data = (self.data & 0xF0) | new_values;
+    }
+
+    pub fn keydown(&mut self, key: Key) {
+        match key {
+            Key::Right => self.row0 &= !(1 << 0),
+            Key::Left => self.row0 &= !(1 << 1),
+            Key::Up => self.row0 &= !(1 << 2),
+            Key::Down => self.row0 &= !(1 << 3),
+            Key::A => self.row1 &= !(1 << 0),
+            Key::B => self.row1 &= !(1 << 1),
+            Key::Select => self.row1 &= !(1 << 2),
+            Key::Start => self.row1 &= !(1 << 3),
+        }
+        self.update();
+    }
+
+    pub fn keyup(&mut self, key: Key) {
+        match key {
+            Key::Right => self.row0 |= 1 << 0,
+            Key::Left => self.row0 |= 1 << 1,
+            Key::Up => self.row0 |= 1 << 2,
+            Key::Down => self.row0 |= 1 << 3,
+            Key::A => self.row1 |= 1 << 0,
+            Key::B => self.row1 |= 1 << 1,
+            Key::Select => self.row1 |= 1 << 2,
+            Key::Start => self.row1 |= 1 << 3,
+        }
+        self.update();
     }
 }
