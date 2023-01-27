@@ -1422,4 +1422,572 @@ mod tests {
         assert_eq!(cpu.reg.c, 0x00);
         checkflags(&cpu, false, false, false, false);
     }
+
+    #[test]
+    fn test_dec_8bit_non_overflow() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.execute(Instruction::DEC(IncDecTarget::A));
+
+        assert_eq!(cpu.reg.a, 0x6);
+        checkflags(&cpu, false, true, false, false);
+    }
+
+    #[test]
+    fn test_dec_8bit_half_carry() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x80;
+        cpu.execute(Instruction::DEC(IncDecTarget::A));
+
+        assert_eq!(cpu.reg.a, 0x7f);
+        checkflags(&cpu, false, true, true, false);
+    }
+
+    #[test]
+    fn test_dec_8bit_underflow() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x0;
+        cpu.execute(Instruction::DEC(IncDecTarget::A));
+
+        assert_eq!(cpu.reg.a, 0xFF);
+        checkflags(&cpu, false, true, true, false);
+    }
+
+    #[test]
+    fn test_dec_16bit_underflow() {
+        let mut cpu = initcpu();
+        cpu.reg.set_bc(0x0000);
+        cpu.execute(Instruction::DEC(IncDecTarget::BC));
+
+        assert_eq!(cpu.reg.get_bc(), 0xFFFF);
+        assert_eq!(cpu.reg.b, 0xFF);
+        assert_eq!(cpu.reg.c, 0xFF);
+        checkflags(&cpu, false, false, false, false);
+    }
+
+    #[test]
+    fn test_add_8bit_non_overflow_target_a() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.execute(Instruction::ADD(Arithmetic::A));
+
+        assert_eq!(cpu.reg.a, 0xe);
+        checkflags(&cpu, false, false, false, false);
+    }
+
+    #[test]
+    fn test_add_8bit_non_overflow_target_c() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.reg.c = 0x3;
+        cpu.execute(Instruction::ADD(Arithmetic::C));
+
+        assert_eq!(cpu.reg.a, 0xa);
+        checkflags(&cpu, false, false, false, false);
+    }
+
+    #[test]
+    fn test_add_8bit_non_overflow_target_c_with_carry() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.reg.c = 0x3;
+        cpu.reg.f.carry = true;
+        cpu.execute(Instruction::ADD(Arithmetic::C));
+
+        assert_eq!(cpu.reg.a, 0xa);
+        checkflags(&cpu, false, false, false, false);
+    }
+
+    #[test]
+    fn test_add_8bit_carry() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0xfc;
+        cpu.reg.b = 0x9;
+        cpu.execute(Instruction::ADD(Arithmetic::B));
+
+        assert_eq!(cpu.reg.a, 0x05);
+        checkflags(&cpu, false, false, true, true);
+    }
+
+    #[test]
+    fn test_add_hl() {
+        let mut cpu = initcpu();
+        cpu.reg.b = 0x07;
+        cpu.reg.c = 0x01;
+        cpu.reg.h = 0x03;
+        cpu.reg.l = 0x02;
+
+        cpu.execute(Instruction::ADDHL(ADDHLTarget::BC));
+        assert_eq!(cpu.reg.get_hl(), 0x0A03);
+        checkflags(&cpu, false, false, true, false);
+    }
+
+    #[test]
+    fn test_addc_8bit_non_overflow_target_a_no_carry() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.execute(Instruction::ADC(Arithmetic::A));
+
+        assert_eq!(cpu.reg.a, 0xe);
+        checkflags(&cpu, false, false, false, false);
+    }
+
+    #[test]
+    fn test_addc_8bit_non_overflow_target_a_with_carry() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.reg.f.carry = true;
+        cpu.execute(Instruction::ADC(Arithmetic::A));
+
+        assert_eq!(cpu.reg.a, 0xf);
+        checkflags(&cpu, false, false, false, false);
+    }
+
+    #[test]
+    fn test_addc_8bit_non_overflow_target_c_with_carry() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.reg.c = 0x3;
+        cpu.reg.f.carry = true;
+        cpu.execute(Instruction::ADC(Arithmetic::C));
+
+        assert_eq!(cpu.reg.a, 0xb);
+        checkflags(&cpu, false, false, false, false);
+    }
+
+    #[test]
+    fn test_addc_8bit_carry_with_carry() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0xfc;
+        cpu.reg.b = 0x3;
+        cpu.reg.f.carry = true;
+        cpu.execute(Instruction::ADC(Arithmetic::B));
+
+        assert_eq!(cpu.reg.a, 0x00);
+        checkflags(&cpu, true, false, true, true);
+    }
+
+    #[test]
+    fn test_sub_8bit_non_underflow_target_a() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.execute(Instruction::SUB(Arithmetic::A));
+
+        assert_eq!(cpu.reg.a, 0x0);
+        checkflags(&cpu, true, true, false, false);
+    }
+
+    #[test]
+    fn test_sub_8bit_non_underflow_target_c() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.reg.c = 0x3;
+        cpu.execute(Instruction::SUB(Arithmetic::C));
+
+        assert_eq!(cpu.reg.a, 0x4);
+        checkflags(&cpu, false, true, false, false);
+    }
+
+    #[test]
+    fn test_sub_8bit_non_overflow_target_c_with_carry() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.reg.c = 0x3;
+        cpu.reg.f.carry = true;
+        cpu.execute(Instruction::SUB(Arithmetic::C));
+
+        assert_eq!(cpu.reg.a, 0x4);
+        checkflags(&cpu, false, true, false, false);
+    }
+
+    #[test]
+    fn test_sub_8bit_carry() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x4;
+        cpu.reg.b = 0x9;
+        cpu.execute(Instruction::SUB(Arithmetic::B));
+
+        assert_eq!(cpu.reg.a, 0xFB);
+        checkflags(&cpu, false, true, true, true);
+    }
+
+    // SBC
+    #[test]
+    fn test_subc_8bit_non_overflow_target_a_no_carry() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.execute(Instruction::SBC(Arithmetic::A));
+
+        assert_eq!(cpu.reg.a, 0x0);
+        checkflags(&cpu, true, true, false, false);
+    }
+
+    #[test]
+    fn test_subc_8bit_non_overflow_target_a_with_carry() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.reg.f.carry = true;
+        cpu.execute(Instruction::SBC(Arithmetic::A));
+
+        assert_eq!(cpu.reg.a, 0xFF);
+        checkflags(&cpu, false, true, true, true);
+    }
+
+    #[test]
+    fn test_subc_8bit_non_overflow_target_c_with_carry() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.reg.c = 0x3;
+        cpu.reg.f.carry = true;
+        cpu.execute(Instruction::SBC(Arithmetic::C));
+
+        assert_eq!(cpu.reg.a, 0x3);
+        checkflags(&cpu, false, true, false, false);
+    }
+
+    #[test]
+    fn test_rra_8bit() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0b1;
+        cpu.execute(Instruction::RRA);
+
+        assert_eq!(cpu.reg.a, 0x0);
+        checkflags(&cpu, false, false, false, true);
+    }
+
+    #[test]
+    fn test_rla_8bit() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x80;
+        cpu.execute(Instruction::RLA);
+
+        assert_eq!(cpu.reg.a, 0x0);
+        checkflags(&cpu, false, false, false, true);
+    }
+
+    #[test]
+    fn test_rrca_8bit() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0b1;
+        cpu.reg.f.carry = true;
+        cpu.execute(Instruction::RRCA);
+
+        assert_eq!(cpu.reg.a, 0x80);
+        checkflags(&cpu, false, false, false, true);
+    }
+
+    #[test]
+    fn test_rlca_8bit() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x80;
+        cpu.reg.f.carry = true;
+        cpu.execute(Instruction::RLCA);
+
+        assert_eq!(cpu.reg.a, 0x1);
+        checkflags(&cpu, false, false, false, true);
+    }
+
+    #[test]
+    fn test_cpl_8bit() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0b1011_0100;
+        cpu.execute(Instruction::CPL);
+
+        assert_eq!(cpu.reg.a, 0b0100_1011);
+        checkflags(&cpu, false, true, true, false);
+    }
+
+    #[test]
+    fn test_jp() {
+        let mut cpu = initcpu();
+        cpu.pc = 0xF8;
+        cpu.mem.write_byte(0xF9, 0xFC);
+        cpu.mem.write_byte(0xFA, 0x02);
+        let (next_pc, _) = cpu.execute(Instruction::JP(JumpTest::Always));
+
+        assert_eq!(next_pc, 0x02FC);
+
+        let (next_pc, _) = cpu.execute(Instruction::JP(JumpTest::Carry));
+
+        assert_eq!(next_pc, 0xFB);
+    }
+
+    #[test]
+    fn test_jr() {
+        let mut cpu = initcpu();
+        cpu.pc = 0xF8;
+        cpu.mem.write_byte(0xF9, 0x4);
+        let (next_pc, _) = cpu.execute(Instruction::JR(JumpTest::Always));
+
+        assert_eq!(next_pc, 0xFE);
+
+        cpu.mem.write_byte(0xF9, 0xFC); // == -4
+        let (next_pc, _) = cpu.execute(Instruction::JR(JumpTest::Always));
+        assert_eq!(next_pc, 0xF6);
+    }
+
+    #[test]
+    fn test_and_8bit() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.execute(Instruction::AND(Arithmetic::A));
+
+        assert_eq!(cpu.reg.a, 0x7);
+        checkflags(&cpu, false, false, true, false);
+    }
+
+    #[test]
+    fn test_and_8bit_with_zero() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.execute(Instruction::AND(Arithmetic::B));
+
+        assert_eq!(cpu.reg.a, 0x0);
+        checkflags(&cpu, true, false, true, false);
+    }
+
+    #[test]
+    fn test_or_8bit() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.execute(Instruction::OR(Arithmetic::A));
+
+        assert_eq!(cpu.reg.a, 0x7);
+        checkflags(&cpu, false, false, false, false);
+    }
+
+    #[test]
+    fn test_or_8bit_with_zero() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.execute(Instruction::OR(Arithmetic::A));
+
+        assert_eq!(cpu.reg.a, 0x7);
+        checkflags(&cpu, false, false, false, false);
+    }
+
+    #[test]
+    fn test_xor_8bit() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.execute(Instruction::XOR(Arithmetic::A));
+
+        assert_eq!(cpu.reg.a, 0x0);
+        checkflags(&cpu, true, false, false, false);
+    }
+
+    #[test]
+    fn test_xor_8bit_with_zero() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.execute(Instruction::XOR(Arithmetic::B));
+
+        assert_eq!(cpu.reg.a, 0x7);
+        checkflags(&cpu, false, false, false, false);
+    }
+
+    #[test]
+    fn test_cp_8bit_non_underflow_target_a() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.execute(Instruction::CP(Arithmetic::A));
+
+        assert_eq!(cpu.reg.a, 0x7);
+        checkflags(&cpu, true, true, false, false);
+    }
+
+    #[test]
+    fn test_cp_8bit_non_underflow_target_c() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.reg.c = 0x3;
+        cpu.execute(Instruction::CP(Arithmetic::C));
+
+        assert_eq!(cpu.reg.a, 0x7);
+        checkflags(&cpu, false, true, false, false);
+    }
+
+    #[test]
+    fn test_cp_8bit_non_overflow_target_c_with_carry() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.reg.c = 0x3;
+        cpu.reg.f.carry = true;
+        cpu.execute(Instruction::CP(Arithmetic::C));
+
+        assert_eq!(cpu.reg.a, 0x7);
+        checkflags(&cpu, false, true, false, false);
+    }
+
+    #[test]
+    fn test_cp_8bit_carry() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x4;
+        cpu.reg.b = 0x9;
+        cpu.execute(Instruction::CP(Arithmetic::B));
+
+        assert_eq!(cpu.reg.a, 0x4);
+        checkflags(&cpu, false, true, true, true);
+    }
+
+    #[test]
+    fn test_push_pop() {
+        let mut cpu = initcpu();
+        cpu.reg.b = 0x4;
+        cpu.reg.c = 0x89;
+        cpu.sp = 0x10;
+        cpu.execute(Instruction::PUSH(StackTarget::BC));
+
+        assert_eq!(cpu.mem.read_byte(0xF), 0x04);
+        assert_eq!(cpu.mem.read_byte(0xE), 0x89);
+        assert_eq!(cpu.sp, 0xE);
+
+        cpu.execute(Instruction::POP(StackTarget::DE));
+
+        assert_eq!(cpu.reg.d, 0x04);
+        assert_eq!(cpu.reg.e, 0x89);
+    }
+
+    #[test]
+    fn test_bit_8bit() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0b1011_0100;
+        cpu.execute(Instruction::BIT(PreFixTarget::A, BitPosition::B2));
+
+        assert_eq!(cpu.reg.a, 0b1011_0100);
+        checkflags(&cpu, false, false, true, false);
+
+        let mut cpu = initcpu();
+        cpu.reg.a = 0b1011_0100;
+        cpu.execute(Instruction::BIT(PreFixTarget::A, BitPosition::B1));
+
+        assert_eq!(cpu.reg.a, 0b1011_0100);
+        checkflags(&cpu, true, false, true, false);
+    }
+
+    #[test]
+    fn test_res_8bit() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0b1011_0100;
+        cpu.execute(Instruction::RES(PreFixTarget::A, BitPosition::B2));
+
+        assert_eq!(cpu.reg.a, 0b1011_0000);
+        checkflags(&cpu, false, false, false, false);
+
+        let mut cpu = initcpu();
+        cpu.reg.a = 0b1011_0100;
+        cpu.execute(Instruction::RES(PreFixTarget::A, BitPosition::B1));
+
+        assert_eq!(cpu.reg.a, 0b1011_0100);
+        checkflags(&cpu, false, false, false, false);
+    }
+
+    #[test]
+    fn test_set_8bit() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0b1011_0100;
+        cpu.execute(Instruction::SET(PreFixTarget::A, BitPosition::B2));
+
+        assert_eq!(cpu.reg.a, 0b1011_0100);
+        checkflags(&cpu, false, false, false, false);
+
+        let mut cpu = initcpu();
+        cpu.reg.a = 0b1011_0100;
+        cpu.execute(Instruction::SET(PreFixTarget::A, BitPosition::B1));
+        assert_eq!(cpu.reg.a, 0b1011_0110);
+        checkflags(&cpu, false, false, false, false);
+    }
+
+    #[test]
+    fn test_srl_8bit() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0b1011_0101;
+        cpu.execute(Instruction::SRL(PreFixTarget::A));
+
+        assert_eq!(cpu.reg.a, 0b0101_1010);
+        checkflags(&cpu, false, false, false, true);
+    }
+
+    #[test]
+    fn test_rr() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0b1011_0101;
+        cpu.execute(Instruction::RR(PreFixTarget::A));
+
+        assert_eq!(cpu.reg.a, 0b0101_1010);
+        checkflags(&cpu, false, false, false, true);
+
+        let mut cpu = initcpu();
+        cpu.reg.a = 0b1011_0101;
+        cpu.reg.f.carry = true;
+        cpu.execute(Instruction::RR(PreFixTarget::A));
+
+        assert_eq!(cpu.reg.a, 0b1101_1010);
+        checkflags(&cpu, false, false, false, true);
+    }
+
+    #[test]
+    fn test_rl() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0b1011_0101;
+        cpu.execute(Instruction::RL(PreFixTarget::A));
+
+        assert_eq!(cpu.reg.a, 0b0110_1010);
+        checkflags(&cpu, false, false, false, true);
+
+        let mut cpu = initcpu();
+        cpu.reg.a = 0b1011_0101;
+        cpu.reg.f.carry = true;
+        cpu.execute(Instruction::RL(PreFixTarget::A));
+
+        assert_eq!(cpu.reg.a, 0b0110_1011);
+        checkflags(&cpu, false, false, false, true);
+    }
+
+    #[test]
+    fn test_sra() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0b1011_0101;
+        cpu.execute(Instruction::SRA(PreFixTarget::A));
+
+        assert_eq!(cpu.reg.a, 0b1101_1010);
+        checkflags(&cpu, false, false, false, true);
+    }
+
+    #[test]
+    fn test_sla() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0b1011_0101;
+        cpu.execute(Instruction::SLA(PreFixTarget::A));
+
+        assert_eq!(cpu.reg.a, 0b0110_1010);
+        checkflags(&cpu, false, false, false, true);
+    }
+
+    #[test]
+    fn test_swap() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0b1011_0101;
+        cpu.execute(Instruction::SWAP(PreFixTarget::A));
+
+        assert_eq!(cpu.reg.a, 0b0101_1011);
+        checkflags(&cpu, false, false, false, false);
+    }
+
+    #[test]
+    fn test_step() {
+        let mut cpu = CPU::new(None, vec![0; 0xFFFF]);
+        cpu.mem.write_byte(0, 0x23); //INC(HL)
+        cpu.mem.write_byte(1, 0xB5); //OR(L)
+        cpu.mem.write_byte(2, 0xCB); //PREFIX
+        cpu.mem.write_byte(3, 0xe8); //SET(B, 5)
+        for _ in 0..3 {
+            cpu.run();
+        }
+
+        assert_eq!(cpu.reg.h, 0b0);
+        assert_eq!(cpu.reg.l, 0b1);
+        assert_eq!(cpu.reg.a, 0b1);
+        assert_eq!(cpu.reg.b, 0b0010_0000);
+    }
 }
