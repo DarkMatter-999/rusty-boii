@@ -27,7 +27,7 @@ const NUMBER_OF_PIXELS: usize = 23040;
 
 fn main() {
     let boot_buffer = buffer_from_file("./roms/dmg_boot.bin");
-    let game_buffer = buffer_from_file("./roms/Tetris (World) (Rev A).gb");
+    let game_buffer = buffer_from_file("./roms/Tennis (World).gb");
 
     let mut cpu = CPU::new(Some(boot_buffer), game_buffer);
 

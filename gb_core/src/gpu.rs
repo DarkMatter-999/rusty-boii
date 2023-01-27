@@ -389,7 +389,7 @@ impl GPU {
             let mut pixel_x_index = self.viewport_x_offset % 8;
 
             if self.background_and_window_data_select == BackgroundAndWindowDataSelect::X8800 {
-                panic!("TODO: support 0x8800 background and window data select");
+                // panic!("TODO: support 0x8800 background and window data select");
             }
 
             let mut canvas_buffer_offset = self.line as usize * SCREEN_WIDTH * 4;
@@ -412,7 +412,7 @@ impl GPU {
                     tile_x_index = tile_x_index + 1;
                 }
                 if self.background_and_window_data_select == BackgroundAndWindowDataSelect::X8800 {
-                    panic!("TODO: support 0x8800 background and window data select");
+                    // panic!("TODO: support 0x8800 background and window data select");
                 }
             }
         }

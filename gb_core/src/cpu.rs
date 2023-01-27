@@ -73,15 +73,15 @@ impl CPU {
 
     fn decode(&self, ins: u8, prefix: bool) -> Instruction {
         if let Some(instruction) = Instruction::from_byte(ins, prefix) {
-            if ins > 0xff {
-                println!(
-                    "0x{:X}\t pc: 0x{:X} \t f:{:X} \t{:?}",
-                    ins,
-                    self.pc,
-                    u8::from(self.reg.f),
-                    instruction
-                );
-            }
+            // if self.pc > 0xff {
+            //     println!(
+            //         "0x{:X}\t pc: 0x{:X} \t f:{:X} \t{:?}",
+            //         ins,
+            //         self.pc,
+            //         u8::from(self.reg.f),
+            //         instruction
+            //     );
+            // }
 
             // sleep(Duration::from_millis(100));
             instruction
@@ -188,6 +188,7 @@ impl CPU {
                         Indirect::HLIndirectPlus => {
                             let hl = self.reg.get_hl();
                             self.reg.set_hl(hl.wrapping_add(1));
+                            // print!("0x{:X} ", self.reg.get_hl());
                             self.mem.write_byte(hl, a);
                         }
                         Indirect::WordIndirect => {
@@ -1103,43 +1104,46 @@ impl CPU {
         self.mem.read_byte(self.pc + 1)
     }
 
-    fn add_without_carry(&mut self, lhs: u8) -> u8 {
-        let (sum, overflow) = self.reg.a.overflowing_add(lhs);
-
+    fn add_without_carry(&mut self, value: u8) -> u8 {
+        let (sum, carry) = self.reg.a.overflowing_add(value);
         self.reg.f.zero = sum == 0;
         self.reg.f.sub = false;
-        self.reg.f.carry = overflow;
-        self.reg.f.half_carry = (self.reg.a & 0xF) + (lhs & 0xF) > 0xF;
-
+        self.reg.f.carry = carry;
+        self.reg.f.half_carry = ((self.reg.a & 0xF) + (value & 0xF)) > 0xF;
         sum
     }
-    fn add_with_carry(&mut self, lhs: u8) -> u8 {
-        let (add1, carry) = self.reg.a.overflowing_add(lhs);
-        let (add2, carry2) = add1.overflowing_add(self.reg.f.carry as u8);
-        self.reg.f.zero = add2 == 0;
+    fn add_with_carry(&mut self, value: u8) -> u8 {
+        let additional_carry = if self.reg.f.carry { 1 } else { 0 };
+        let (sum, carry) = self.reg.a.overflowing_add(value);
+        let (sum2, carry2) = sum.overflowing_add(additional_carry);
+        self.reg.f.zero = sum2 == 0;
         self.reg.f.sub = false;
         self.reg.f.carry = carry || carry2;
-        self.reg.f.half_carry = ((self.reg.a & 0xF) + (lhs & 0xF) + (self.reg.f.carry as u8)) > 0xF;
-        add2
+        self.reg.f.half_carry = ((self.reg.a & 0xF) + (value & 0xF) + additional_carry) > 0xF;
+        sum2
     }
-    fn sub_without_carry(&mut self, lhs: u8) -> u8 {
-        let (value, overflow) = self.reg.a.overflowing_sub(lhs);
-        self.reg.f.zero = value == 0;
-        self.reg.f.sub = true;
-        self.reg.f.carry = overflow;
-        self.reg.f.half_carry = (self.reg.a & 0xF) < (value & 0xF);
 
-        value
+    fn sub_without_carry(&mut self, value: u8) -> u8 {
+        let (diff, carry) = self.reg.a.overflowing_sub(value);
+        self.reg.f.zero = diff == 0;
+        self.reg.f.sub = true;
+        self.reg.f.carry = carry;
+
+        self.reg.f.half_carry = (self.reg.a & 0xF) < (value & 0xF);
+        diff
     }
-    fn sub_with_carry(&mut self, lhs: u8) -> u8 {
-        let (sub, carry) = self.reg.a.overflowing_sub(lhs);
-        let (sub2, carry2) = sub.overflowing_sub(self.reg.f.carry as u8);
-        self.reg.f.zero = sub2 == 0;
+    fn sub_with_carry(&mut self, value: u8) -> u8 {
+        let additional_carry = if self.reg.f.carry { 1 } else { 0 };
+        let (diff, carry) = self.reg.a.overflowing_sub(value);
+        let (diff2, carry2) = diff.overflowing_sub(additional_carry);
+        self.reg.f.zero = diff2 == 0;
         self.reg.f.sub = true;
         self.reg.f.carry = carry || carry2;
-        self.reg.f.half_carry = (self.reg.a & 0xF) < (lhs & 0xF) + (self.reg.f.carry as u8);
-        sub2
+
+        self.reg.f.half_carry = (self.reg.a & 0xF) < (value & 0xF) + additional_carry;
+        diff2
     }
+
     fn jump(&mut self, jump: bool) -> (u16, u8) {
         if jump {
             let lsb = self.mem.read_byte(self.pc + 1) as u16;
