@@ -445,7 +445,7 @@ impl GPU {
                     let canvas_y_offset = line as i32 * SCREEN_WIDTH as i32;
                     let mut canvas_offset = ((canvas_y_offset + object.x as i32) * 4) as usize;
                     for x in 0..8i16 {
-                        let pixel_x_offset = if object.xflip { (7 - x) } else { x } as usize;
+                        let pixel_x_offset = if object.xflip { 7 - x } else { x } as usize;
                         let x_offset = object.x + x;
                         let pixel = tile_row[pixel_x_offset];
                         if x_offset >= 0

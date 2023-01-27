@@ -7,4 +7,8 @@ edition = "2021"
 
 [dependencies]
 gb_core = {path="./gb_core"}
-sdl2 = "*"
+
+[dependencies.sdl2]
+version = "^0.35.2"
+default-features = true
+features = ["ttf"]

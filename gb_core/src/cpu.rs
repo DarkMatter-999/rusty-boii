@@ -73,7 +73,7 @@ impl CPU {
 
     fn decode(&self, ins: u8, prefix: bool) -> Instruction {
         if let Some(instruction) = Instruction::from_byte(ins, prefix) {
-            if (ins > 0xff) {
+            if ins > 0xff {
                 println!(
                     "0x{:X}\t pc: 0x{:X} \t f:{:X} \t{:?}",
                     ins,
@@ -1311,5 +1311,115 @@ impl CPU {
     }
     fn dec16bit(&mut self, value: u16) -> u16 {
         value.wrapping_sub(1)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn initcpu() -> CPU {
+        let mut cpu = CPU::new(None, vec![0; 0xFFFF]);
+        cpu
+    }
+
+    fn checkflags(cpu: &CPU, zero: bool, sub: bool, half_carry: bool, carry: bool) {
+        let flags = cpu.reg.f;
+        assert_eq!(flags.zero, zero);
+        assert_eq!(flags.sub, sub);
+        assert_eq!(flags.half_carry, half_carry);
+        assert_eq!(flags.carry, carry);
+    }
+
+    #[test]
+    fn test_nop() {
+        let mut cpu = initcpu();
+        cpu.execute(Instruction::NOP);
+        checkflags(&cpu, false, false, false, false);
+    }
+
+    #[test]
+    fn test_ld_a_indirect() {
+        let mut cpu = initcpu();
+        cpu.reg.set_bc(0xF9);
+        cpu.mem.write_byte(0xF9, 0x4);
+        cpu.execute(Instruction::LD(LoadType::AFromIndirect(
+            Indirect::BCIndirect,
+        )));
+
+        assert_eq!(cpu.reg.a, 0x04);
+
+        cpu.reg.set_hl(0xA1);
+        cpu.mem.write_byte(0xA1, 0x9);
+        cpu.execute(Instruction::LD(LoadType::AFromIndirect(
+            Indirect::HLIndirectPlus,
+        )));
+
+        assert_eq!(cpu.reg.a, 0x09);
+        assert_eq!(cpu.reg.get_hl(), 0xA2);
+    }
+
+    #[test]
+    fn test_ld_byte() {
+        let mut cpu = initcpu();
+        cpu.reg.b = 0x4;
+        cpu.execute(Instruction::LD(LoadType::Byte(
+            LoadByteTarget::D,
+            LoadByteSource::B,
+        )));
+
+        assert_eq!(cpu.reg.b, 0x4);
+        assert_eq!(cpu.reg.d, 0x4);
+    }
+
+    #[test]
+    fn test_inc_8bit_non_overflow() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0x7;
+        cpu.execute(Instruction::INC(IncDecTarget::A));
+        assert_eq!(cpu.reg.a, 0x8);
+        checkflags(&cpu, false, false, false, false);
+    }
+
+    #[test]
+    fn test_inc_8bit_half_carry() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0xF;
+        cpu.execute(Instruction::INC(IncDecTarget::A));
+        assert_eq!(cpu.reg.a, 0x10);
+        checkflags(&cpu, false, false, true, false);
+    }
+
+    #[test]
+    fn test_inc_8bit_overflow() {
+        let mut cpu = initcpu();
+        cpu.reg.a = 0xFF;
+        cpu.execute(Instruction::INC(IncDecTarget::A));
+        assert_eq!(cpu.reg.a, 0x0);
+        checkflags(&cpu, true, false, true, false);
+    }
+
+    #[test]
+    fn test_inc_16bit_byte_overflow() {
+        let mut cpu = initcpu();
+        cpu.reg.set_bc(0xFF);
+        cpu.execute(Instruction::INC(IncDecTarget::BC));
+
+        assert_eq!(cpu.reg.get_bc(), 0x0100);
+        assert_eq!(cpu.reg.b, 0x01);
+        assert_eq!(cpu.reg.c, 0x00);
+        checkflags(&cpu, false, false, false, false);
+    }
+
+    #[test]
+    fn test_inc_16bit_overflow() {
+        let mut cpu = initcpu();
+        cpu.reg.set_bc(0xFFFF);
+        cpu.execute(Instruction::INC(IncDecTarget::BC));
+
+        assert_eq!(cpu.reg.get_bc(), 0x0);
+        assert_eq!(cpu.reg.b, 0x00);
+        assert_eq!(cpu.reg.c, 0x00);
+        checkflags(&cpu, false, false, false, false);
     }
 }

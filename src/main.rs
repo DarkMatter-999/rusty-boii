@@ -1,9 +1,19 @@
 use gb_core::{controller::Key, cpu::CPU};
 use sdl2::{
-    event::Event, keyboard::Keycode, pixels::Color, rect::Rect, render::Canvas, sys::KeyCode,
+    event::Event,
+    keyboard::Keycode,
+    pixels::Color,
+    rect::Rect,
+    render::{Canvas, TextureQuery},
+    ttf::Font,
     video::Window,
 };
-use std::{io::Read, time::Instant};
+
+use std::{
+    io::Read,
+    thread::sleep,
+    time::{Duration, Instant},
+};
 
 pub const SCREEN_WIDTH: u32 = 160;
 pub const SCREEN_HEIGHT: u32 = 144;
@@ -39,6 +49,21 @@ fn main() {
     let mut canvas = window.into_canvas().present_vsync().build().unwrap();
     canvas.clear();
     canvas.present();
+
+    // // Debug
+    let window2 = video_subsystem
+        .window("MemView", 500, 500)
+        .position_centered()
+        .opengl()
+        .build()
+        .unwrap();
+
+    let ttf_context = sdl2::ttf::init().unwrap();
+    let mut canvas2 = window2.into_canvas().build().unwrap();
+    let texture_creator = canvas2.texture_creator();
+    let mut font = ttf_context.load_font("./pixeboy.ttf", 128).unwrap();
+    font.set_style(sdl2::ttf::FontStyle::BOLD);
+    let mut ins: [u8; 10] = [0; 10];
 
     let mut event_pump = sdl_context.event_pump().unwrap();
 
@@ -87,10 +112,15 @@ fn main() {
         let mut cycles_elapsed = 0;
         while cycles_elapsed <= cycles_to_run as usize {
             cycles_elapsed += cpu.run() as usize;
-            // ins = get_mem(&cpu);
-            // draw_debug(&mut canvas2, &mut font, ins);
+
             // sleep(Duration::from_millis(100));
         }
+
+        ins = get_mem(&cpu);
+        ins[1] = (cpu.pc & 0xff) as u8;
+        ins[0] = (cpu.pc >> 2) as u8;
+        draw_debug(&mut canvas2, &mut font, ins);
+
         draw_screen(&cpu, &mut canvas);
 
         cycles_elapsed_in_frame += cycles_elapsed;
@@ -142,4 +172,42 @@ fn get_input(key: Keycode) -> Option<Key> {
         Keycode::L => Some(Key::A),
         _ => None,
     }
+}
+
+fn draw_debug(canvas2: &mut Canvas<Window>, font: &mut Font, ins: [u8; 10]) {
+    let strs: Vec<String> = ins.iter().map(|b| format!("0x{:x}", b)).collect();
+    let strs = strs.join(" ");
+
+    let texture_creator = canvas2.texture_creator();
+
+    font.set_style(sdl2::ttf::FontStyle::BOLD);
+
+    // render a surface, and convert it to a texture bound to the canvas
+    let mut surface = font
+        .render(&strs)
+        .blended(Color::RGBA(255, 0, 0, 255))
+        .unwrap();
+    let mut texture = texture_creator
+        .create_texture_from_surface(&surface)
+        .unwrap();
+
+    canvas2.set_draw_color(Color::RGBA(195, 217, 255, 255));
+    canvas2.clear();
+
+    let TextureQuery { width, height, .. } = texture.query();
+
+    canvas2
+        .copy(&texture, None, Some(Rect::new(1, 1, 500, 50)))
+        .unwrap();
+    canvas2.present();
+}
+
+fn get_mem(cpu: &CPU) -> [u8; 10] {
+    let mut data: [u8; 10] = [0; 10];
+
+    for x in 0..10 {
+        data[x] = cpu.mem.read_byte(cpu.pc + (x as u16));
+    }
+
+    data
 }
