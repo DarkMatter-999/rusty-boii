@@ -25,6 +25,6 @@ $ GameBoi <GameRom-Path> <BootRom-Path(Optional)>
 
 ## TODOs
 
-- [] Add support for X8800 tiles
-- [] Add better timer support
-- [] Add sound subsystem
+- [ ] Add support for X8800 tiles
+- [ ] Add better timer support
+- [ ] Add sound subsystem
