@@ -29,10 +29,14 @@ const ONE_SECOND_IN_CYCLES: usize = 4190000;
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let boot_buffer = buffer_from_file(&args[1]);
-    let game_buffer = buffer_from_file(&args[2]);
+    let boot_buffer: Option<Vec<u8>> = if args.len() > 2 {
+        Some(buffer_from_file(&args[2]))
+    } else {
+        None
+    };
+    let game_buffer = buffer_from_file(&args[1]);
 
-    let mut cpu = CPU::new(Some(boot_buffer), game_buffer);
+    let mut cpu = CPU::new(boot_buffer, game_buffer);
 
     // run(&mut cpu);
 
