@@ -10,6 +10,7 @@ use sdl2::{
 };
 
 use std::{
+    env,
     io::Read,
     thread::sleep,
     time::{Duration, Instant},
@@ -23,11 +24,13 @@ const TICKS_PER_FRAME: usize = 70224;
 
 const ONE_SECOND_IN_MICROS: usize = 1000000000;
 const ONE_SECOND_IN_CYCLES: usize = 4190000;
-const NUMBER_OF_PIXELS: usize = 23040;
+// const NUMBER_OF_PIXELS: usize = 23040;
 
 fn main() {
-    let boot_buffer = buffer_from_file("./roms/dmg_boot.bin");
-    let game_buffer = buffer_from_file("./roms/Tennis (World).gb");
+    let args: Vec<String> = env::args().collect();
+
+    let boot_buffer = buffer_from_file(&args[1]);
+    let game_buffer = buffer_from_file(&args[2]);
 
     let mut cpu = CPU::new(Some(boot_buffer), game_buffer);
 
@@ -50,20 +53,20 @@ fn main() {
     canvas.clear();
     canvas.present();
 
-    // // Debug
-    let window2 = video_subsystem
-        .window("MemView", 500, 500)
-        .position_centered()
-        .opengl()
-        .build()
-        .unwrap();
+    // Debug
+    // let window2 = video_subsystem
+    //     .window("MemView", 500, 500)
+    //     .position_centered()
+    //     .opengl()
+    //     .build()
+    //     .unwrap();
 
-    let ttf_context = sdl2::ttf::init().unwrap();
-    let mut canvas2 = window2.into_canvas().build().unwrap();
-    let texture_creator = canvas2.texture_creator();
-    let mut font = ttf_context.load_font("./pixeboy.ttf", 128).unwrap();
-    font.set_style(sdl2::ttf::FontStyle::BOLD);
-    let mut ins: [u8; 10] = [0; 10];
+    // let ttf_context = sdl2::ttf::init().unwrap();
+    // let mut canvas2 = window2.into_canvas().build().unwrap();
+    // let texture_creator = canvas2.texture_creator();
+    // let mut font = ttf_context.load_font("./pixeboy.ttf", 128).unwrap();
+    // font.set_style(sdl2::ttf::FontStyle::BOLD);
+    // let mut ins: [u8; 10] = [0; 10];
 
     let mut event_pump = sdl_context.event_pump().unwrap();
 
@@ -116,10 +119,10 @@ fn main() {
             // sleep(Duration::from_millis(100));
         }
 
-        ins = get_mem(&cpu);
-        ins[1] = (cpu.pc & 0xff) as u8;
-        ins[0] = (cpu.pc >> 2) as u8;
-        draw_debug(&mut canvas2, &mut font, ins);
+        // ins = get_mem(&cpu);
+        // ins[1] = (cpu.pc & 0xff) as u8;
+        // ins[0] = (cpu.pc >> 2) as u8;
+        // draw_debug(&mut canvas2, &mut font, ins);
 
         draw_screen(&cpu, &mut canvas);
 
